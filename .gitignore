@@ -1,0 +1,23 @@
+# Dependencias (se reinstalan con npm install)
+node_modules/
+
+# Variables de entorno: contienen tokens y contraseñas, NUNCA se suben
+.env
+.env.*
+!.env.example
+
+# Imágenes subidas por usuarios (datos personales, aunque sean sintéticos)
+almacenamiento/*
+!almacenamiento/.gitkeep
+
+# Logs y respaldos
+logs/
+*.log
+*.dump
+*.backup
+*.bak
+
+# Sistema operativo y editor
+Thumbs.db
+.DS_Store
+.vscode/

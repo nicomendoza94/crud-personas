@@ -1,0 +1,31 @@
+{
+  "name": "crud-personas",
+  "version": "1.0.0",
+  "description": "CRUD de personas con auditoría de búsquedas, captcha y notificación a Telegram",
+  "type": "module",
+  "main": "src/servidor.js",
+  "private": true,
+  "license": "UNLICENSED",
+  "author": "Nicolas Mendoza",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "node --watch --env-file=.env src/servidor.js",
+    "start": "node --env-file=.env src/servidor.js",
+    "test": "node --test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nicomendoza94/crud-personas.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nicomendoza94/crud-personas/issues"
+  },
+  "homepage": "https://github.com/nicomendoza94/crud-personas#readme",
+  "dependencies": {
+    "express": "^5.2.1",
+    "helmet": "^8.3.0",
+    "zod": "^4.6.5"
+  }
+}
