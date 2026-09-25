@@ -10,18 +10,28 @@
 import { z } from 'zod';
 
 // Esquema: qué variables esperamos, de qué tipo y con qué valores por defecto.
+// Las variables con datos sensibles o propios de cada instalación (nombre de la base,
+// usuario, contraseña) NO tienen valor por defecto: si faltan, la app no arranca.
 const esquema = z.object({
+  // --- Servidor ---
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   HOST: z.string().min(1).default('127.0.0.1'),
   // z.coerce convierte el texto "3000" en el número 3000 antes de validarlo
   PUERTO: z.coerce.number().int().min(1).max(65535).default(3000),
+
+  // --- Base de datos ---
+  DB_HOST: z.string().min(1).default('127.0.0.1'),
+  DB_PUERTO: z.coerce.number().int().min(1).max(65535).default(5432),
+  DB_NOMBRE: z.string().min(1),
+  DB_USUARIO: z.string().min(1),
+  DB_CONTRASENA: z.string().min(1),
 });
 
 const resultado = esquema.safeParse(process.env);
 
 if (!resultado.success) {
   // Mostramos QUÉ variable falló y por qué, pero nunca su valor:
-  // en el futuro habrá tokens y contraseñas que no deben terminar en un log.
+  // hay contraseñas y tokens que no deben terminar en un log.
   console.error('Configuración inválida en las variables de entorno:');
   for (const problema of resultado.error.issues) {
     console.error(`  - ${problema.path.join('.')}: ${problema.message}`);
@@ -31,10 +41,20 @@ if (!resultado.success) {
 
 const variables = resultado.data;
 
-// Object.freeze impide que otra parte del código modifique la configuración en ejecución.
+// Object.freeze impide modificar la configuración en ejecución.
+// Es "superficial": solo congela el primer nivel, por eso el objeto
+// anidado `db` se congela por separado.
 export const config = Object.freeze({
   entorno: variables.NODE_ENV,
   esProduccion: variables.NODE_ENV === 'production',
   host: variables.HOST,
   puerto: variables.PUERTO,
+
+  db: Object.freeze({
+    host: variables.DB_HOST,
+    puerto: variables.DB_PUERTO,
+    nombre: variables.DB_NOMBRE,
+    usuario: variables.DB_USUARIO,
+    contrasena: variables.DB_CONTRASENA,
+  }),
 });

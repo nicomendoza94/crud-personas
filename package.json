@@ -13,6 +13,7 @@
   "scripts": {
     "dev": "node --watch --env-file=.env src/servidor.js",
     "start": "node --env-file=.env src/servidor.js",
+    "migrar": "node --env-file=.env src/db/migrar.js",
     "test": "node --test"
   },
   "repository": {
@@ -26,6 +27,7 @@
   "dependencies": {
     "express": "^5.2.1",
     "helmet": "^8.3.0",
+    "pg": "^8.23.0",
     "zod": "^4.6.5"
   }
 }

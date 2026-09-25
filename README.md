@@ -8,10 +8,37 @@ y geolocalización, y notificación a un grupo de Telegram.
 
 ## Requisitos previos
 - Node.js 22 o superior
-- PostgreSQL 16
+- PostgreSQL 16 o superior (desarrollado con PostgreSQL 18)
 
 ## Instalación y ejecución
-_(pendiente)_
+
+1. Clonar el repositorio e instalar dependencias:
+```bash
+   git clone git@github.com:nicomendoza94/crud-personas.git
+   cd crud-personas
+   npm install
+```
+
+2. Crear el usuario y la base de datos (conectado como superusuario, por ejemplo `psql -U postgres`).
+   La aplicación usa un usuario propio sin privilegios de superusuario:
+```sql
+   CREATE ROLE crud_app WITH LOGIN;
+   \password crud_app
+   CREATE DATABASE crud_personas OWNER crud_app ENCODING 'UTF8' TEMPLATE template0;
+```
+
+3. Copiar `.env.example` a `.env` y completar los valores (como mínimo `DB_CONTRASENA`).
+
+4. Crear las tablas:
+```bash
+   npm run migrar
+```
+
+5. Iniciar la aplicación:
+```bash
+   npm run dev
+```
+   Queda disponible en `http://127.0.0.1:3000`.
 
 ## Arquitectura y stack
 _(pendiente)_
