@@ -11,6 +11,7 @@ import rutasPersonas from './rutas/personas.rutas.js';
 import rutasBusquedas from './rutas/busquedas.rutas.js';
 import cookieParser from 'cookie-parser';
 import rutasConfiguracion from './rutas/configuracion.rutas.js';
+import { identificarIpCliente } from './middlewares/ipCliente.js';
 
 // import.meta.dirname es la carpeta de este archivo (src/). La carpeta pública está un nivel arriba.
 const RUTA_PUBLICA = path.join(import.meta.dirname, '..', 'public');
@@ -31,6 +32,10 @@ export function crearApp() {
       },
     }),
   );
+
+  // Identifica la IP real del visitante (detrás de Cloudflare Tunnel).
+  // Va antes que todo lo demás para que cualquier parte de la app pueda usarla.
+  app.use(identificarIpCliente);
 
   // 2. Lectura de cuerpos JSON con límite de tamaño: evita que alguien
   //    envíe un JSON gigante para consumir memoria del servidor.

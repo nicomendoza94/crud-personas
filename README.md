@@ -142,7 +142,37 @@ para que el usuario refine el término.
 **En la interfaz,** la búsqueda se ejecuta solo al presionar "Buscar", nunca mientras se escribe.
 
 ## Obtención de la IP del visitante
-_(pendiente)_
+
+La aplicación se expone mediante Cloudflare Tunnel: el visitante se conecta a Cloudflare, y
+`cloudflared` (en esta misma máquina) reenvía la petición a la aplicación. Para la aplicación,
+todas las conexiones provienen de `127.0.0.1`, por lo que la IP de la conexión no sirve.
+
+**Regla implementada** (`src/utils/ip.js`):
+- Si la conexión proviene de loopback (`127.0.0.0/8` o `::1`), es decir, del túnel, se usa el
+  encabezado **`CF-Connecting-IP`**, validado como IP con `net.isIP`.
+- En cualquier otro caso, se usa la IP de la conexión (`req.socket.remoteAddress`) y se ignoran
+  todos los encabezados.
+- **`X-Forwarded-For` no se usa nunca.**
+
+**Por qué es confiable:**
+- `CF-Connecting-IP` lo escribe Cloudflare con la IP del visitante; si el cliente envía uno
+  propio, Cloudflare lo reemplaza.
+- `X-Forwarded-For`, en cambio, es una lista a la que Cloudflare *agrega* la IP real, conservando
+  los valores que haya enviado el cliente: tomar el primer valor sería confiar en el atacante.
+- El servidor escucha **solo en `127.0.0.1`**: desde fuera de esta máquina, la única forma de
+  llegar a la aplicación es a través del túnel. Una conexión directa desde otra dirección
+  conserva su IP real y su `CF-Connecting-IP` se ignora.
+- Un valor que no es una IP válida (texto, varias IPs) se descarta.
+
+**Límite conocido:** un proceso que corra en el mismo servidor podría enviar un
+`CF-Connecting-IP` arbitrario. Requiere acceso a la máquina, lo que ya implica acceso a la base.
+
+Se registra también el **origen** de cada IP (`cloudflare` o `conexion`). La lógica está cubierta
+por tests (`tests/ip.test.js`), incluidos los casos de encabezados falsificados.
+
+**Alternativa descartada:** `app.set('trust proxy', ...)` de Express. Funciona con
+`X-Forwarded-For`, pero se prefirió una regla explícita y específica para Cloudflare, en una
+función pura y testeable.
 
 ## Captcha
 
