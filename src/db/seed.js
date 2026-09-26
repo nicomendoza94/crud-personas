@@ -87,8 +87,8 @@ function generarPersonas() {
     const especial = casosEspeciales[i];
     const datos = {
       nombres: faker.person.firstName(),
-      // Dos apellidos, como es habitual en la región
-      apellidos: `${faker.person.lastName()} ${faker.person.lastName()}`,
+      // faker en español ya genera dos apellidos por llamada
+      apellidos: faker.person.lastName(),
       nroDocumento: String(DOCUMENTO_INICIAL + i),
       // Edad mínima 1: evita fechas del día actual que, por diferencia de
       // zona horaria con UTC, podrían resultar "futuras"
