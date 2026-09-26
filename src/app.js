@@ -8,6 +8,7 @@ import express from 'express';
 import helmet from 'helmet';
 import { rutaNoEncontrada, manejadorErrores } from './middlewares/errores.js';
 import rutasPersonas from './rutas/personas.rutas.js';
+import rutasBusquedas from './rutas/busquedas.rutas.js';
 
 // import.meta.dirname es la carpeta de este archivo (src/). La carpeta pública está un nivel arriba.
 const RUTA_PUBLICA = path.join(import.meta.dirname, '..', 'public');
@@ -38,6 +39,8 @@ export function crearApp() {
   });
 
   app.use('/api/personas', rutasPersonas);
+
+  app.use('/api/busquedas', rutasBusquedas);
 
   // 4. Archivos del front end. Solo se sirve la carpeta public/:
   //    nada de src/, .env ni almacenamiento/ es accesible desde la web.

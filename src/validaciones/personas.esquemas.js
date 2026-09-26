@@ -108,3 +108,32 @@ export const esquemaPersona = z.object({
 export const esquemaImagen = esquemaId.extend({
   lado: z.enum(['frente', 'dorso'], { error: 'El lado debe ser "frente" o "dorso"' }),
 });
+
+// -----------------------------------------------------------------------------
+// Búsqueda
+// -----------------------------------------------------------------------------
+
+export const LARGO_MINIMO_BUSQUEDA = 3;
+export const LARGO_MAXIMO_BUSQUEDA = 100;
+
+export const esquemaBusqueda = z.object({
+  termino: z
+    // Rechaza contenido no textual (números, listas, objetos)
+    .string({ error: 'El término de búsqueda debe ser un texto' })
+    .max(LARGO_MAXIMO_BUSQUEDA, {
+      error: `El término de búsqueda admite como máximo ${LARGO_MAXIMO_BUSQUEDA} caracteres`,
+    })
+    // Quita espacios de los extremos y unifica los espacios internos
+    .transform((valor) => valor.trim().replace(/\s+/g, ' '))
+    .pipe(
+      z
+        .string()
+        .min(LARGO_MINIMO_BUSQUEDA, {
+          error: `Ingrese al menos ${LARGO_MINIMO_BUSQUEDA} caracteres para buscar`,
+        })
+        // Caracteres de control (invisibles): no tienen sentido en una búsqueda
+        .refine((valor) => !/\p{Cc}/u.test(valor), {
+          error: 'El término de búsqueda contiene caracteres no permitidos',
+        }),
+    ),
+});

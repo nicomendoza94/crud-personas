@@ -116,3 +116,46 @@ export async function eliminar(id) {
   );
   return rows[0] ?? null;
 }
+
+/**
+ * Busca personas cuyo número de documento empieza con el prefijo indicado.
+ * El prefijo llega normalizado (solo [0-9A-Z]), por lo que no puede contener
+ * comodines de LIKE. Usa el índice personas_nro_documento_prefijo.
+ */
+export async function buscarPorDocumento(prefijo, limite) {
+  const { rows } = await pool.query(
+    `SELECT ${COLUMNAS_LISTADO}
+       FROM personas
+      WHERE nro_documento LIKE $1 || '%'
+      ORDER BY apellidos, nombres, id
+      LIMIT $2`,
+    [prefijo, limite],
+  );
+  return rows;
+}
+
+/**
+ * Busca personas cuyo nombre completo contiene TODAS las palabras indicadas,
+ * sin distinguir mayúsculas ni tildes. Usa el índice personas_busqueda_nombre.
+ *
+ * @param {string[]} palabras Palabras con los comodines de LIKE ya escapados
+ */
+export async function buscarPorNombre(palabras, limite) {
+  // Una condición por palabra. Los marcadores ($1, $2...) los genera el código
+  // según la cantidad de palabras: el texto del usuario nunca se inserta en el
+  // SQL, viaja siempre como parámetro.
+  const condiciones = palabras.map(
+    (_, indice) =>
+      `normalizar_texto(nombres || ' ' || apellidos) LIKE '%' || normalizar_texto($${indice + 1}) || '%' ESCAPE '\\'`,
+  );
+
+  const { rows } = await pool.query(
+    `SELECT ${COLUMNAS_LISTADO}
+       FROM personas
+      WHERE ${condiciones.join(' AND ')}
+      ORDER BY apellidos, nombres, id
+      LIMIT $${palabras.length + 1}`,
+    [...palabras, limite],
+  );
+  return rows;
+}

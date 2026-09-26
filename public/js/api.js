@@ -72,3 +72,15 @@ export function actualizarPersona(id, datosFormulario) {
 export function eliminarPersona(id) {
   return solicitar(`/api/personas/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }
+
+/**
+ * Búsqueda de personas. El término viaja en el cuerpo (JSON) y no en la URL:
+ * puede ser un dato personal, y las URLs quedan registradas en historiales y logs.
+ */
+export function buscarPersonas(termino) {
+  return solicitar('/api/busquedas', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ termino }),
+  });
+}

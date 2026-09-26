@@ -1,5 +1,5 @@
 /**
- * Interfaz de gestión de personas: listado paginado, alta, edición,
+ * Interfaz de gestión de personas: listado paginado, búsqueda, alta, edición,
  * detalle con imágenes y eliminación.
  *
  * Regla de seguridad: los datos que vienen de la API se insertan SIEMPRE con
@@ -15,19 +15,28 @@ import {
   fechaHoyLocal,
 } from './formato.js';
 
-// Mismo límite que el servidor. Aquí es solo para avisar antes de enviar:
+// Mismos límites que el servidor. Aquí son solo para avisar antes de enviar:
 // el control real lo hace el servidor.
 const TAMANIO_MAXIMO_IMAGEN = 2 * 1024 * 1024;
+const LARGO_MINIMO_BUSQUEDA = 3;
 const DURACION_MENSAJE_MS = 5000;
 
 // --- Referencias a los elementos del HTML ------------------------------------
 const el = {
   mensaje: document.getElementById('mensaje'),
   cuerpoTabla: document.getElementById('cuerpo-tabla'),
+  paginacion: document.getElementById('paginacion'),
   infoPagina: document.getElementById('info-pagina'),
   botonAnterior: document.getElementById('boton-anterior'),
   botonSiguiente: document.getElementById('boton-siguiente'),
   botonNueva: document.getElementById('boton-nueva'),
+
+  // NUEVO: búsqueda
+  formularioBusqueda: document.getElementById('formulario-busqueda'),
+  campoBusqueda: document.getElementById('campo-busqueda'),
+  botonBuscar: document.getElementById('boton-buscar'),
+  botonLimpiarBusqueda: document.getElementById('boton-limpiar-busqueda'),
+  infoBusqueda: document.getElementById('info-busqueda'),
 
   dialogoFormulario: document.getElementById('dialogo-formulario'),
   formulario: document.getElementById('formulario-persona'),
@@ -46,14 +55,17 @@ const el = {
   botonConfirmarEliminar: document.getElementById('boton-confirmar-eliminar'),
 };
 
-// Campos del formulario, accesibles por su atributo name
+// Campos del formulario de persona, accesibles por su atributo name
 const campos = el.formulario.elements;
 
 // --- Estado de la interfaz ---------------------------------------------------
 const estado = {
   pagina: 1,
   totalPaginas: 1,
-  personasDePagina: new Map(), // id -> persona, de la página visible
+  personasVisibles: new Map(), // id -> persona, de las filas en pantalla
+  // NUEVO: null = modo listado. Con una búsqueda activa:
+  // { termino, criterio, resultados, limitado }
+  busqueda: null,
   idEnEdicion: null, // null = alta; número = edición de esa persona
   idAEliminar: null,
 };
@@ -76,8 +88,13 @@ function mostrarMensaje(texto, tipo = 'exito') {
   }, DURACION_MENSAJE_MS);
 }
 
+/** NUEVO: texto de un error de la API, con el detalle de los campos si lo hay. */
+function textoDeError(err) {
+  return err.detalles?.length > 0 ? err.detalles.map((d) => d.mensaje).join(' ') : err.message;
+}
+
 // =============================================================================
-// Listado
+// Filas de la tabla (compartidas por el listado y la búsqueda)
 // =============================================================================
 
 function crearCelda(texto) {
@@ -121,7 +138,7 @@ function crearFila(persona) {
   return fila;
 }
 
-/** Fila única con un texto (listado vacío o con error). */
+/** Fila única con un texto (sin resultados o con error). */
 function crearFilaMensaje(texto) {
   const celda = crearCelda(texto);
   celda.colSpan = 6;
@@ -131,6 +148,25 @@ function crearFilaMensaje(texto) {
   return fila;
 }
 
+/** NUEVO: dibuja una lista de personas en la tabla (listado o resultados de búsqueda). */
+function mostrarFilas(personas, textoSiVacio) {
+  estado.personasVisibles = new Map(personas.map((persona) => [persona.id, persona]));
+  const filas = personas.length > 0 ? personas.map(crearFila) : [crearFilaMensaje(textoSiVacio)];
+  el.cuerpoTabla.replaceChildren(...filas);
+}
+
+/** NUEVO: muestra u oculta los controles propios de cada modo. */
+function aplicarModo(modo) {
+  const enBusqueda = modo === 'busqueda';
+  el.paginacion.hidden = enBusqueda;
+  el.infoBusqueda.hidden = !enBusqueda;
+  el.botonLimpiarBusqueda.hidden = !enBusqueda;
+}
+
+// =============================================================================
+// Listado paginado
+// =============================================================================
+
 /** Habilita o deshabilita la paginación según la página actual y si hay una carga en curso. */
 function actualizarBotonesPaginacion(cargando) {
   el.botonAnterior.disabled = cargando || estado.pagina <= 1;
@@ -139,6 +175,8 @@ function actualizarBotonesPaginacion(cargando) {
 
 /** Pide una página a la API y la dibuja en la tabla. */
 async function cargarListado(pagina = estado.pagina) {
+  estado.busqueda = null;
+  aplicarModo('listado');
   actualizarBotonesPaginacion(true);
   let paginaCorregida = null;
 
@@ -154,12 +192,7 @@ async function cargarListado(pagina = estado.pagina) {
 
     estado.pagina = paginacion.pagina;
     estado.totalPaginas = paginacion.totalPaginas;
-    estado.personasDePagina = new Map(datos.map((persona) => [persona.id, persona]));
-
-    const filas = datos.length > 0
-      ? datos.map(crearFila)
-      : [crearFilaMensaje('No hay personas registradas.')];
-    el.cuerpoTabla.replaceChildren(...filas);
+    mostrarFilas(datos, 'No hay personas registradas.');
 
     el.infoPagina.textContent =
       `Página ${paginacion.pagina} de ${paginacion.totalPaginas} (${paginacion.total} personas)`;
@@ -173,6 +206,79 @@ async function cargarListado(pagina = estado.pagina) {
   if (paginaCorregida !== null) {
     await cargarListado(paginaCorregida);
   }
+}
+
+// =============================================================================
+// NUEVO: Búsqueda
+// =============================================================================
+
+/** Dibuja los resultados de la búsqueda activa y su resumen. */
+function mostrarResultadosBusqueda() {
+  const { termino, criterio, resultados, limitado } = estado.busqueda;
+
+  mostrarFilas(resultados, 'No se encontraron personas con ese criterio.');
+
+  const tipo = criterio === 'documento' ? 'número de documento' : 'nombre y apellido';
+  const cantidad = `${resultados.length} ${resultados.length === 1 ? 'resultado' : 'resultados'}`;
+  let resumen = `${cantidad} para "${termino}" (búsqueda por ${tipo}).`;
+  if (limitado) {
+    resumen += ` Se muestran los primeros ${resultados.length}: refine la búsqueda para encontrar otros.`;
+  }
+  // textContent: el término lo escribió el usuario y se muestra como texto
+  el.infoBusqueda.textContent = resumen;
+
+  aplicarModo('busqueda');
+}
+
+async function ejecutarBusqueda(evento) {
+  evento.preventDefault();
+
+  // Misma limpieza que hace el servidor, para validar el largo real
+  const termino = el.campoBusqueda.value.trim().replace(/\s+/g, ' ');
+  if (termino.length < LARGO_MINIMO_BUSQUEDA) {
+    mostrarMensaje(`Ingrese al menos ${LARGO_MINIMO_BUSQUEDA} caracteres para buscar.`, 'error');
+    return;
+  }
+
+  // Evita búsquedas duplicadas por doble clic (cada una genera un registro de auditoría)
+  el.botonBuscar.disabled = true;
+  try {
+    const resultado = await api.buscarPersonas(termino);
+    estado.busqueda = { termino, ...resultado };
+    mostrarResultadosBusqueda();
+  } catch (err) {
+    mostrarMensaje(textoDeError(err), 'error');
+  } finally {
+    el.botonBuscar.disabled = false;
+  }
+}
+
+function volverAlListado() {
+  el.campoBusqueda.value = '';
+  cargarListado(estado.pagina);
+}
+
+/**
+ * Actualiza la tabla después de editar o eliminar.
+ * En modo búsqueda se modifica la fila en pantalla SIN repetir la búsqueda:
+ * repetirla generaría un registro de auditoría de una búsqueda que el
+ * usuario no hizo.
+ */
+async function refrescarTrasCambio({ personaActualizada = null, idEliminado = null } = {}) {
+  if (!estado.busqueda) {
+    await cargarListado();
+    return;
+  }
+
+  let { resultados } = estado.busqueda;
+  if (personaActualizada) {
+    resultados = resultados.map((p) => (p.id === personaActualizada.id ? personaActualizada : p));
+  }
+  if (idEliminado !== null) {
+    resultados = resultados.filter((p) => p.id !== idEliminado);
+  }
+  estado.busqueda.resultados = resultados;
+  mostrarResultadosBusqueda();
 }
 
 // =============================================================================
@@ -280,7 +386,8 @@ async function guardarFormulario(evento) {
     mostrarMensaje(
       `${esAlta ? 'Se registró' : 'Se actualizó'} a ${persona.nombres} ${persona.apellidos}.`,
     );
-    await cargarListado();
+    // NUEVO: un alta no modifica los resultados de una búsqueda activa
+    await refrescarTrasCambio({ personaActualizada: esAlta ? null : persona });
   } catch (err) {
     // Si el servidor indicó qué campos fallaron, se muestra cada uno
     const mensajes = err.detalles?.length > 0 ? err.detalles.map((d) => d.mensaje) : [err.message];
@@ -333,7 +440,7 @@ async function abrirDetalle(id) {
 // =============================================================================
 
 function pedirConfirmacionEliminar(id) {
-  const persona = estado.personasDePagina.get(id);
+  const persona = estado.personasVisibles.get(id);
   estado.idAEliminar = id;
   el.textoConfirmar.textContent = persona
     ? `¿Desea eliminar a ${persona.nombres} ${persona.apellidos} (documento ${formatearDocumento(persona.nroDocumento)})?`
@@ -342,12 +449,13 @@ function pedirConfirmacionEliminar(id) {
 }
 
 async function confirmarEliminar() {
+  const id = estado.idAEliminar;
   el.botonConfirmarEliminar.disabled = true;
   try {
-    await api.eliminarPersona(estado.idAEliminar);
+    await api.eliminarPersona(id);
     el.dialogoConfirmar.close();
     mostrarMensaje('La persona fue eliminada.');
-    await cargarListado();
+    await refrescarTrasCambio({ idEliminado: id });
   } catch (err) {
     el.dialogoConfirmar.close();
     mostrarMensaje(err.message, 'error');
@@ -400,6 +508,10 @@ el.formulario.addEventListener('submit', guardarFormulario);
 el.botonConfirmarEliminar.addEventListener('click', confirmarEliminar);
 el.botonAnterior.addEventListener('click', () => cargarListado(estado.pagina - 1));
 el.botonSiguiente.addEventListener('click', () => cargarListado(estado.pagina + 1));
+
+// NUEVO: búsqueda
+el.formularioBusqueda.addEventListener('submit', ejecutarBusqueda);
+el.botonLimpiarBusqueda.addEventListener('click', volverAlListado);
 
 // Carga inicial
 cargarListado(1);

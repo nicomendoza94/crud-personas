@@ -17,8 +17,20 @@
 
   <main class="contenido">
     <div class="barra-acciones">
+      <!-- Búsqueda: se ejecuta solo al enviar el formulario, nunca mientras se escribe -->
+      <form id="formulario-busqueda" class="busqueda" role="search">
+        <label for="campo-busqueda" class="solo-lectores">Buscar personas</label>
+        <input id="campo-busqueda" name="termino" type="search"
+               placeholder="Buscar por nombre, apellido o nro. de documento"
+               required minlength="3" maxlength="100" autocomplete="off">
+        <button type="submit" id="boton-buscar" class="boton boton-primario">Buscar</button>
+        <button type="button" id="boton-limpiar-busqueda" class="boton" hidden>Ver listado completo</button>
+      </form>
       <button type="button" id="boton-nueva" class="boton boton-primario">Nueva persona</button>
     </div>
+
+    <!-- Resumen de la búsqueda (cantidad de resultados y criterio usado) -->
+    <p id="info-busqueda" class="info-busqueda" hidden></p>
 
     <!-- Mensajes de estado (éxito o error). aria-live: los lectores de pantalla los anuncian. -->
     <p id="mensaje" class="mensaje" role="status" aria-live="polite" hidden></p>
@@ -41,7 +53,7 @@
       </table>
     </div>
 
-    <nav class="paginacion" aria-label="Paginación del listado">
+    <nav id="paginacion" class="paginacion" aria-label="Paginación del listado">
       <button type="button" id="boton-anterior" class="boton">Anterior</button>
       <span id="info-pagina"></span>
       <button type="button" id="boton-siguiente" class="boton">Siguiente</button>

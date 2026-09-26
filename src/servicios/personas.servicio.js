@@ -227,3 +227,57 @@ export async function obtenerRutaImagen(id, lado) {
 
   return ruta;
 }
+
+// -----------------------------------------------------------------------------
+// Búsqueda
+// -----------------------------------------------------------------------------
+
+// Una búsqueda sirve para encontrar a alguien concreto: si hay más
+// coincidencias que este límite, se indica para que el usuario refine el término.
+export const LIMITE_RESULTADOS_BUSQUEDA = 50;
+
+// Máximo de palabras consideradas en una búsqueda por nombre
+const MAXIMO_PALABRAS = 5;
+
+/** Escapa los comodines de LIKE (% y _) y la barra invertida, para buscarlos de forma literal. */
+function escaparComodines(texto) {
+  return texto.replace(/[\\%_]/g, '\\$&');
+}
+
+/**
+ * Busca personas por documento o por nombre.
+ *
+ * Criterio:
+ *  - Si el término contiene algún dígito, se busca por documento, por prefijo
+ *    y normalizado igual que al guardar ("90.000.1" -> "900001%").
+ *    Es seguro porque los nombres no admiten dígitos.
+ *  - Si no, se busca por nombres y apellidos: deben aparecer TODAS las palabras,
+ *    sin distinguir mayúsculas ni tildes.
+ *
+ * @param {string} termino Término ya validado (entre 3 y 100 caracteres)
+ */
+export async function buscar(termino) {
+  const sinSeparadores = termino.replace(/[\s.-]/g, '').toUpperCase();
+  const esDocumento = /\d/.test(sinSeparadores) && /^[0-9A-Z]+$/.test(sinSeparadores);
+
+  // Se pide uno más que el límite: si llega, significa que hay más resultados
+  const limiteConsulta = LIMITE_RESULTADOS_BUSQUEDA + 1;
+
+  const filas = esDocumento
+    ? await repositorio.buscarPorDocumento(sinSeparadores, limiteConsulta)
+    : await repositorio.buscarPorNombre(
+        termino.split(' ').slice(0, MAXIMO_PALABRAS).map(escaparComodines),
+        limiteConsulta,
+      );
+
+  const limitado = filas.length > LIMITE_RESULTADOS_BUSQUEDA;
+  const hoy = fechaHoyEnZona(config.zonaHoraria);
+  const resultados = filas.slice(0, LIMITE_RESULTADOS_BUSQUEDA).map((fila) => aResumen(fila, hoy));
+
+  return {
+    criterio: esDocumento ? 'documento' : 'nombre',
+    resultados,
+    cantidad: resultados.length,
+    limitado,
+  };
+}

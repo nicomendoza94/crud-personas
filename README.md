@@ -108,6 +108,39 @@ se ignora. Antes de acceder al disco se verifica que el nombre tenga exactamente
 toma de la base, nunca de la petición, y se envía con `Content-Type: image/webp`,
 `X-Content-Type-Options: nosniff` y `Cache-Control: no-store`.
 
+## Búsqueda
+
+`POST /api/busquedas` con `{ "termino": "..." }`. El término viaja en el cuerpo y no en la URL
+porque puede ser un dato personal, y las URLs quedan registradas en historiales y logs de
+servidores e intermediarios. Además, cada búsqueda genera un registro de auditoría: no es una
+lectura sin efectos.
+
+**Campos y criterio de coincidencia:**
+- Si el término contiene algún dígito, se busca por **número de documento**, por prefijo y
+  normalizado igual que al guardar (sin puntos, guiones ni espacios): `90.000.1` encuentra
+  `90000100`, `90000101`, etc. Es seguro porque los nombres no admiten dígitos.
+- Si no, se busca por **nombres y apellidos**: deben aparecer todas las palabras (hasta 5), en
+  cualquier orden, sin distinguir mayúsculas ni tildes (`jose garcia` encuentra a "José García").
+
+**Término vacío o demasiado corto:** se exige un mínimo de 3 caracteres, contados después de
+quitar los espacios de los extremos. Con menos, la respuesta es 400 con un mensaje claro.
+
+**Entradas inesperadas:**
+- Más de 100 caracteres: 400.
+- Contenido que no es texto (número, lista, objeto) o JSON mal formado: 400.
+- Caracteres de control: 400.
+- Comodines de SQL (`%`, `_`): se escapan y se buscan de forma literal; `%%%` no devuelve
+  toda la tabla.
+- Las consultas son siempre parametrizadas: ningún carácter puede alterar la consulta SQL.
+
+**Resultados:** como máximo 50, ordenados por apellido. Si hay más coincidencias se indica
+para que el usuario refine el término.
+
+**Eficiencia:** índice de trigramas (`pg_trgm`) sobre nombres y apellidos sin tildes
+(`unaccent`), e índice `text_pattern_ops` sobre el documento para la búsqueda por prefijo.
+
+**En la interfaz,** la búsqueda se ejecuta solo al presionar "Buscar", nunca mientras se escribe.
+
 ## Obtención de la IP del visitante
 _(pendiente)_
 
