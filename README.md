@@ -44,7 +44,48 @@ y geolocalización, y notificación a un grupo de Telegram.
 _(pendiente)_
 
 ## Almacenamiento de imágenes
-_(pendiente)_
+
+**Decisión:** las imágenes se guardan en el sistema de archivos (carpeta `almacenamiento/`,
+fuera de `public/` y excluida de git). La base de datos guarda solo el nombre del archivo.
+
+**Ventajas obtenidas:**
+- La base se mantiene liviana: el listado nunca arrastra datos de imágenes.
+- Los respaldos de la base son pequeños y rápidos.
+- Las imágenes se envían con `sendFile`, por partes, sin cargarlas completas en memoria.
+
+**Desventajas asumidas:**
+- Base y disco pueden desincronizarse; se mitiga con el orden de las operaciones (ver ciclo de vida).
+- Hay que respaldar dos cosas: la base y la carpeta de imágenes.
+- No escala a varios servidores, porque cada uno tendría su propio disco.
+
+**Cuándo cambiaría el enfoque:** con más de un servidor o en la nube, usaría almacenamiento
+de objetos (S3, Cloudflare R2). Base64 en la base lo descarté: aumenta el tamaño ~33% y
+engorda cada fila.
+
+**Validación de cada archivo:**
+1. Límite de **2 MB** por archivo y máximo 2 archivos por petición (`multer`, en memoria:
+   nada se escribe en disco antes de validar).
+2. Tipo real detectado por los primeros bytes del contenido (*magic bytes*, con `file-type`):
+   se ignoran la extensión y el tipo declarado por el cliente. Se aceptan JPEG, PNG y WebP.
+3. Re-codificación completa con `sharp` a WebP: si el contenido no es una imagen real, falla.
+   El archivo guardado es nuevo, sin metadatos EXIF (que pueden incluir ubicación GPS) ni
+   contenido oculto del original. Se reduce a 1600 px por lado como máximo.
+4. Límite de **25 megapíxeles** de entrada, contra "bombas de descompresión".
+
+**Nombre del archivo:** lo genera el servidor (`<UUID>.webp`). El nombre enviado por el cliente
+se ignora. Antes de acceder al disco se verifica que el nombre tenga exactamente ese formato.
+
+**Ciclo de vida:**
+- *Alta:* se validan ambas imágenes, se guardan y se inserta la fila. Si el `INSERT` falla
+  (por ejemplo, documento duplicado), se borran los archivos recién escritos.
+- *Edición:* las imágenes son opcionales. Las nuevas se guardan antes de actualizar la fila,
+  y las reemplazadas se borran después.
+- *Baja:* se elimina la fila y luego sus imágenes. Si falla el borrado de un archivo, queda
+  huérfano (inofensivo); nunca queda una persona apuntando a una imagen inexistente.
+
+**Acceso:** solo a través de `GET /api/personas/:id/imagenes/:lado`. El nombre del archivo se
+toma de la base, nunca de la petición, y se envía con `Content-Type: image/webp`,
+`X-Content-Type-Options: nosniff` y `Cache-Control: no-store`.
 
 ## Obtención de la IP del visitante
 _(pendiente)_

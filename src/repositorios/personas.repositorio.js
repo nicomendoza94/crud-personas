@@ -48,3 +48,71 @@ export async function buscarPorId(id) {
   );
   return rows[0] ?? null;
 }
+
+/**
+ * Inserta una persona y devuelve el id asignado por la base.
+ * @param {object} persona Datos ya validados + nombres de archivo de las imágenes
+ */
+export async function crear(persona) {
+  const { rows } = await pool.query(
+    `INSERT INTO personas
+       (nombres, apellidos, nro_documento, fecha_nacimiento, imagen_frente, imagen_dorso)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     RETURNING id`,
+    [
+      persona.nombres,
+      persona.apellidos,
+      persona.nroDocumento,
+      persona.fechaNacimiento,
+      persona.imagenFrente,
+      persona.imagenDorso,
+    ],
+  );
+  return rows[0].id;
+}
+
+/**
+ * Actualiza los datos de una persona.
+ * Cada imagen se reemplaza solo si se indica un nombre nuevo;
+ * con null, COALESCE conserva el valor actual de la columna.
+ *
+ * @returns {Promise<boolean>} true si la persona existía y fue actualizada
+ */
+export async function actualizar(id, persona) {
+  const { rowCount } = await pool.query(
+    `UPDATE personas
+        SET nombres          = $2,
+            apellidos        = $3,
+            nro_documento    = $4,
+            fecha_nacimiento = $5,
+            imagen_frente    = COALESCE($6, imagen_frente),
+            imagen_dorso     = COALESCE($7, imagen_dorso),
+            actualizado_en   = now()
+      WHERE id = $1`,
+    [
+      id,
+      persona.nombres,
+      persona.apellidos,
+      persona.nroDocumento,
+      persona.fechaNacimiento,
+      persona.imagenFrente,
+      persona.imagenDorso,
+    ],
+  );
+  return rowCount > 0;
+}
+
+/**
+ * Elimina una persona.
+ * RETURNING devuelve los nombres de sus imágenes en la misma operación,
+ * para poder borrar los archivos después.
+ *
+ * @returns {Promise<object|null>} { imagen_frente, imagen_dorso }, o null si no existía
+ */
+export async function eliminar(id) {
+  const { rows } = await pool.query(
+    'DELETE FROM personas WHERE id = $1 RETURNING imagen_frente, imagen_dorso',
+    [id],
+  );
+  return rows[0] ?? null;
+}
