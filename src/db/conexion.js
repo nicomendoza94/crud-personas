@@ -16,6 +16,12 @@ const { Pool, types } = pg;
 // Por eso pedimos que el tipo DATE (código interno 1082) llegue como texto 'AAAA-MM-DD'.
 types.setTypeParser(1082, (valor) => valor);
 
+// El tipo BIGINT (código interno 20) llega como texto por defecto, porque
+// puede superar el máximo entero exacto de JavaScript (2^53).
+// Nuestros ids y conteos nunca se acercan a ese límite, así que es seguro
+// convertirlos a número.
+types.setTypeParser(20, (valor) => Number(valor));
+
 export const pool = new Pool({
   host: config.db.host,
   port: config.db.puerto,

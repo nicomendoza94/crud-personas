@@ -49,6 +49,21 @@ export const config = Object.freeze({
   esProduccion: variables.NODE_ENV === 'production',
   host: variables.HOST,
   puerto: variables.PUERTO,
+  zonaHoraria: variables.ZONA_HORARIA,
+
+// Zona horaria usada para calcular "hoy" (edad de las personas).
+// Se valida que sea una zona IANA real (ej: America/Asuncion).
+  ZONA_HORARIA: z
+    .string()
+    .default('America/Asuncion')
+    .refine((zona) => {
+      try {
+        new Intl.DateTimeFormat('es', { timeZone: zona });
+        return true;
+      } catch {
+        return false;
+      }
+    }, 'Zona horaria inválida'),
 
   db: Object.freeze({
     host: variables.DB_HOST,

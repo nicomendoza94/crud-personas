@@ -7,6 +7,7 @@ import path from 'node:path';
 import express from 'express';
 import helmet from 'helmet';
 import { rutaNoEncontrada, manejadorErrores } from './middlewares/errores.js';
+import rutasPersonas from './rutas/personas.rutas.js';
 
 // import.meta.dirname es la carpeta de este archivo (src/). La carpeta pública está un nivel arriba.
 const RUTA_PUBLICA = path.join(import.meta.dirname, '..', 'public');
@@ -23,11 +24,20 @@ export function crearApp() {
   app.use(express.json({ limit: '10kb' }));
 
   // 3. Rutas de la API
+  //    Las respuestas de la API contienen datos personales: se indica que no deben
+  //    guardarse en caché (ni en el navegador ni en intermediarios como Cloudflare).
+  app.use('/api', (req, res, next) => {
+    res.set('Cache-Control', 'no-store');
+    next();
+  });
+
   //    Endpoint de salud: permite verificar rápidamente que el servidor responde
   //    (útil para probar el túnel sin depender de la base de datos).
   app.get('/api/salud', (req, res) => {
     res.json({ estado: 'ok' });
   });
+
+  app.use('/api/personas', rutasPersonas);
 
   // 4. Archivos del front end. Solo se sirve la carpeta public/:
   //    nada de src/, .env ni almacenamiento/ es accesible desde la web.
