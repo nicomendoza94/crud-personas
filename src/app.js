@@ -9,6 +9,8 @@ import helmet from 'helmet';
 import { rutaNoEncontrada, manejadorErrores } from './middlewares/errores.js';
 import rutasPersonas from './rutas/personas.rutas.js';
 import rutasBusquedas from './rutas/busquedas.rutas.js';
+import cookieParser from 'cookie-parser';
+import rutasConfiguracion from './rutas/configuracion.rutas.js';
 
 // import.meta.dirname es la carpeta de este archivo (src/). La carpeta pública está un nivel arriba.
 const RUTA_PUBLICA = path.join(import.meta.dirname, '..', 'public');
@@ -17,12 +19,26 @@ export function crearApp() {
   const app = express();
 
   // 1. Encabezados de seguridad (CSP, nosniff, etc.). Va primero para cubrir todas las respuestas.
-  app.use(helmet());
+  //    La CSP de helmet solo permite recursos del propio servidor; se agrega
+  //    exclusivamente el dominio de Cloudflare Turnstile (su script y el iframe del widget).
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          scriptSrc: ["'self'", 'https://challenges.cloudflare.com'],
+          frameSrc: ["'self'", 'https://challenges.cloudflare.com'],
+        },
+      },
+    }),
+  );
 
   // 2. Lectura de cuerpos JSON con límite de tamaño: evita que alguien
   //    envíe un JSON gigante para consumir memoria del servidor.
   //    (Las imágenes NO viajan por acá: tendrán su propio manejo con multer.)
   app.use(express.json({ limit: '10kb' }));
+
+  // Lectura de cookies (sesión de búsqueda habilitada por el captcha)
+  app.use(cookieParser());
 
   // 3. Rutas de la API
   //    Las respuestas de la API contienen datos personales: se indica que no deben
@@ -41,6 +57,8 @@ export function crearApp() {
   app.use('/api/personas', rutasPersonas);
 
   app.use('/api/busquedas', rutasBusquedas);
+
+  app.use('/api/configuracion', rutasConfiguracion);
 
   // 4. Archivos del front end. Solo se sirve la carpeta public/:
   //    nada de src/, .env ni almacenamiento/ es accesible desde la web.

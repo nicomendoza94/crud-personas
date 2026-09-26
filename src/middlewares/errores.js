@@ -13,15 +13,18 @@
  */
 export class ErrorAplicacion extends Error {
   /**
-   * @param {number} estado   Código HTTP (400, 404, 409...)
-   * @param {string} mensaje  Mensaje apto para el usuario
+   * @param {number} estado     Código HTTP (400, 404, 409...)
+   * @param {string} mensaje    Mensaje apto para el usuario
    * @param {object} [detalles] Información adicional segura (ej: qué campos fallaron)
+   * @param {string} [codigo]   Código para que el cliente identifique el caso
+   *                            (ej: 'CAPTCHA_REQUERIDO')
    */
-  constructor(estado, mensaje, detalles) {
+  constructor(estado, mensaje, detalles, codigo) {
     super(mensaje);
     this.name = 'ErrorAplicacion';
     this.estado = estado;
     this.detalles = detalles;
+    this.codigo = codigo;
   }
 }
 
@@ -44,7 +47,7 @@ export function manejadorErrores(err, req, res, next) {
 
   // Errores propios: se muestran tal cual (son mensajes controlados)
   if (err instanceof ErrorAplicacion) {
-    return res.status(err.estado).json({ error: err.message, detalles: err.detalles });
+    return res.status(err.estado).json({ error: err.message, detalles: err.detalles, codigo: err.codigo });
   }
 
   // Errores del parser de JSON de Express: son culpa del cliente, no del servidor

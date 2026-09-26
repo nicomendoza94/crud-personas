@@ -11,13 +11,35 @@ import { z } from 'zod';
 
 // Esquema: qué variables esperamos, de qué tipo y con qué valores por defecto.
 // Las variables con datos sensibles o propios de cada instalación (nombre de la base,
-// usuario, contraseña) NO tienen valor por defecto: si faltan, la app no arranca.
+// usuario, contraseña, claves) NO tienen valor por defecto: si faltan, la app no arranca.
 const esquema = z.object({
   // --- Servidor ---
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   HOST: z.string().min(1).default('127.0.0.1'),
   // z.coerce convierte el texto "3000" en el número 3000 antes de validarlo
   PUERTO: z.coerce.number().int().min(1).max(65535).default(3000),
+
+  // Zona horaria usada para calcular "hoy" (edad de las personas, fechas futuras).
+  // Se valida que sea una zona IANA real (ej: America/Asuncion).
+  ZONA_HORARIA: z
+    .string()
+    .default('America/Asuncion')
+    .refine((zona) => {
+      try {
+        new Intl.DateTimeFormat('es', { timeZone: zona });
+        return true;
+      } catch {
+        return false;
+      }
+    }, 'Zona horaria inválida'),
+
+  // --- Captcha (Cloudflare Turnstile) ---
+  // Sin valores por defecto: las claves deben configurarse en cada instalación
+  TURNSTILE_CLAVE_SITIO: z.string().min(1),
+  TURNSTILE_CLAVE_SECRETA: z.string().min(1),
+  // Política de la sesión de búsqueda habilitada por un captcha aprobado
+  CAPTCHA_VIGENCIA_MINUTOS: z.coerce.number().int().min(1).max(120).default(10),
+  CAPTCHA_MAXIMO_BUSQUEDAS: z.coerce.number().int().min(1).max(500).default(20),
 
   // --- Base de datos ---
   DB_HOST: z.string().min(1).default('127.0.0.1'),
@@ -42,8 +64,8 @@ if (!resultado.success) {
 const variables = resultado.data;
 
 // Object.freeze impide modificar la configuración en ejecución.
-// Es "superficial": solo congela el primer nivel, por eso el objeto
-// anidado `db` se congela por separado.
+// Es "superficial": solo congela el primer nivel, por eso los objetos
+// anidados se congelan por separado.
 export const config = Object.freeze({
   entorno: variables.NODE_ENV,
   esProduccion: variables.NODE_ENV === 'production',
@@ -51,19 +73,12 @@ export const config = Object.freeze({
   puerto: variables.PUERTO,
   zonaHoraria: variables.ZONA_HORARIA,
 
-// Zona horaria usada para calcular "hoy" (edad de las personas).
-// Se valida que sea una zona IANA real (ej: America/Asuncion).
-  ZONA_HORARIA: z
-    .string()
-    .default('America/Asuncion')
-    .refine((zona) => {
-      try {
-        new Intl.DateTimeFormat('es', { timeZone: zona });
-        return true;
-      } catch {
-        return false;
-      }
-    }, 'Zona horaria inválida'),
+  captcha: Object.freeze({
+    claveSitio: variables.TURNSTILE_CLAVE_SITIO,
+    claveSecreta: variables.TURNSTILE_CLAVE_SECRETA,
+    vigenciaMinutos: variables.CAPTCHA_VIGENCIA_MINUTOS,
+    maximoBusquedas: variables.CAPTCHA_MAXIMO_BUSQUEDAS,
+  }),
 
   db: Object.freeze({
     host: variables.DB_HOST,

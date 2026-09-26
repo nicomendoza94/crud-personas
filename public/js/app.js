@@ -14,6 +14,7 @@ import {
   formatearEdad,
   fechaHoyLocal,
 } from './formato.js';
+import { solicitarCaptcha } from './captcha.js';
 
 // Mismos límites que el servidor. Aquí son solo para avisar antes de enviar:
 // el control real lo hace el servidor.
@@ -214,7 +215,7 @@ async function cargarListado(pagina = estado.pagina) {
 
 /** Dibuja los resultados de la búsqueda activa y su resumen. */
 function mostrarResultadosBusqueda() {
-  const { termino, criterio, resultados, limitado } = estado.busqueda;
+  const { termino, criterio, resultados, limitado, sesion } = estado.busqueda;
 
   mostrarFilas(resultados, 'No se encontraron personas con ese criterio.');
 
@@ -224,10 +225,30 @@ function mostrarResultadosBusqueda() {
   if (limitado) {
     resumen += ` Se muestran los primeros ${resultados.length}: refine la búsqueda para encontrar otros.`;
   }
+  if (sesion) {
+    resumen += ` Búsquedas disponibles antes de volver a verificarse: ${sesion.busquedasRestantes}.`;
+  }
   // textContent: el término lo escribió el usuario y se muestra como texto
   el.infoBusqueda.textContent = resumen;
 
   aplicarModo('busqueda');
+}
+
+/**
+ * Busca y, si el servidor exige verificación (sin sesión, o sesión vencida
+ * o agotada), muestra el captcha y reintenta la búsqueda una vez.
+ * @returns {Promise<object|null>} El resultado, o null si el usuario canceló
+ */
+async function buscarConVerificacion(termino) {
+  try {
+    return await api.buscarPersonas(termino);
+  } catch (err) {
+    if (err.codigo !== 'CAPTCHA_REQUERIDO') throw err;
+
+    const verificado = await solicitarCaptcha();
+    if (!verificado) return null;
+    return api.buscarPersonas(termino);
+  }
 }
 
 async function ejecutarBusqueda(evento) {
@@ -243,7 +264,9 @@ async function ejecutarBusqueda(evento) {
   // Evita búsquedas duplicadas por doble clic (cada una genera un registro de auditoría)
   el.botonBuscar.disabled = true;
   try {
-    const resultado = await api.buscarPersonas(termino);
+    const resultado = await buscarConVerificacion(termino);
+    if (!resultado) return; // El usuario canceló la verificación
+
     estado.busqueda = { termino, ...resultado };
     mostrarResultadosBusqueda();
   } catch (err) {

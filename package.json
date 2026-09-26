@@ -26,6 +26,7 @@
   },
   "homepage": "https://github.com/nicomendoza94/crud-personas#readme",
   "dependencies": {
+    "cookie-parser": "^1.4.7",
     "express": "^5.2.1",
     "file-type": "^22.1.1",
     "helmet": "^8.3.0",

@@ -2,12 +2,14 @@
  * Cliente de la API. Todas las llamadas al servidor pasan por este módulo.
  */
 
-/** Error con la información que devuelve la API (mensaje, código y detalles). */
+/** Error con la información que devuelve la API (mensaje, código HTTP, detalles y código de error). */
 export class ErrorApi extends Error {
-  constructor(estado, mensaje, detalles = []) {
+  constructor(estado, mensaje, detalles = [], codigo = null) {
     super(mensaje);
     this.estado = estado;
     this.detalles = detalles;
+    // Código legible por el programa (ej: 'CAPTCHA_REQUERIDO')
+    this.codigo = codigo;
   }
 }
 
@@ -42,6 +44,7 @@ async function solicitar(url, opciones = {}) {
       respuesta.status,
       cuerpo?.error ?? 'Ocurrió un error inesperado. Intente nuevamente.',
       cuerpo?.detalles ?? [],
+      cuerpo?.codigo ?? null,
     );
   }
 
@@ -82,5 +85,23 @@ export function buscarPersonas(termino) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ termino }),
+  });
+}
+
+/** Configuración pública del servidor (clave de sitio del captcha). */
+export function obtenerConfiguracion() {
+  return solicitar('/api/configuracion');
+}
+
+/**
+ * Envía el token del captcha al servidor. Si es válido, el servidor responde
+ * con una cookie de sesión de búsqueda (HttpOnly: el JavaScript no puede leerla,
+ * pero el navegador la envía automáticamente en las búsquedas siguientes).
+ */
+export function verificarCaptcha(token) {
+  return solicitar('/api/busquedas/verificacion', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token }),
   });
 }

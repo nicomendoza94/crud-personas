@@ -145,7 +145,40 @@ para que el usuario refine el término.
 _(pendiente)_
 
 ## Captcha
-_(pendiente)_
+
+**Mecanismo:** Cloudflare Turnstile (gratuito, sin rastreo publicitario, habitualmente se
+resuelve con un clic).
+
+**Validación:**
+1. El navegador resuelve el widget y obtiene un token de Turnstile.
+2. Lo envía a `POST /api/busquedas/verificacion`.
+3. El servidor lo verifica con la API de Cloudflare (`siteverify`) usando la clave secreta,
+   con un tiempo máximo de espera de 5 segundos.
+4. Si es válido, abre una **sesión de búsqueda**: genera un token aleatorio de 32 bytes, lo envía
+   en una cookie `HttpOnly`, `SameSite=Strict`, restringida a `/api/busquedas` (y `Secure` en
+   producción), y guarda en la base solo su hash SHA-256.
+5. `POST /api/busquedas` exige esa sesión: sin ella responde 403 con el código `CAPTCHA_REQUERIDO`.
+
+**Por qué no puede eludirse:** un token de Turnstile solo se obtiene resolviendo el widget en un
+navegador, y solo es válido si Cloudflare lo confirma: un token inventado es rechazado. Los tokens
+son de un solo uso y vencen a los 5 minutos. Una llamada directa a `POST /api/busquedas` (por
+ejemplo con `curl`) sin sesión, o con una cookie inventada, recibe 403.
+
+**Política (equilibrio entre seguridad y usabilidad):** un captcha aprobado habilita
+**20 búsquedas durante 10 minutos**, lo que ocurra primero (configurable con
+`CAPTCHA_MAXIMO_BUSQUEDAS` y `CAPTCHA_VIGENCIA_MINUTOS`). Después se solicita nuevamente. La
+búsqueda se ejecuta solo al presionar "Buscar", nunca mientras se escribe. Cada intento de
+búsqueda descuenta una unidad, aunque el término sea inválido.
+
+**Detalles de implementación:**
+- La búsqueda se descuenta con un único `UPDATE` atómico: aunque lleguen muchas peticiones
+  simultáneas con la misma cookie, nunca se superan las búsquedas habilitadas.
+- Se guarda el hash y no el token: una copia de la base no permite usar sesiones.
+- Si no se puede consultar a Cloudflare, la búsqueda **no** se habilita (se falla cerrado,
+  respuesta 503): el captcha es un control de seguridad y no debe desactivarse ante una falla.
+- Las claves se leen de variables de entorno. La clave de sitio (pública por diseño) se entrega
+  al front mediante `GET /api/configuracion`; la secreta nunca sale del servidor.
+- La CSP solo permite scripts e iframes del propio servidor y de `challenges.cloudflare.com`.
 
 ## Información enviada a Telegram
 _(pendiente)_

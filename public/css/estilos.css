@@ -323,3 +323,11 @@ dialog h2 {
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+/* --- Captcha ------------------------------------------------------------- */
+.contenedor-captcha {
+  display: flex;
+  justify-content: center;
+  min-height: 70px; /* Reserva el lugar del widget mientras carga */
+  margin: 1rem 0;
+}
