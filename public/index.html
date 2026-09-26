@@ -4,9 +4,129 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Registro de personas</title>
+  <link rel="stylesheet" href="/css/estilos.css">
+  <!-- type="module": permite import/export y se ejecuta cuando el HTML ya está cargado.
+       No hay scripts inline: la política de seguridad (CSP) los bloquea. -->
+  <script type="module" src="/js/app.js"></script>
 </head>
 <body>
-  <h1>Registro de personas</h1>
-  <p>Aplicación en construcción. Todos los datos cargados son sintéticos.</p>
+  <header class="cabecera">
+    <h1>Registro de personas</h1>
+    <p class="aviso-sintetico">Todos los datos de este sistema son sintéticos.</p>
+  </header>
+
+  <main class="contenido">
+    <div class="barra-acciones">
+      <button type="button" id="boton-nueva" class="boton boton-primario">Nueva persona</button>
+    </div>
+
+    <!-- Mensajes de estado (éxito o error). aria-live: los lectores de pantalla los anuncian. -->
+    <p id="mensaje" class="mensaje" role="status" aria-live="polite" hidden></p>
+
+    <!-- Listado paginado -->
+    <div class="tabla-contenedor">
+      <table class="tabla">
+        <thead>
+          <tr>
+            <th scope="col">Apellidos</th>
+            <th scope="col">Nombres</th>
+            <th scope="col">Documento</th>
+            <th scope="col">Nacimiento</th>
+            <th scope="col">Edad</th>
+            <th scope="col"><span class="solo-lectores">Acciones</span></th>
+          </tr>
+        </thead>
+        <!-- Las filas las genera app.js a partir de los datos de la API -->
+        <tbody id="cuerpo-tabla"></tbody>
+      </table>
+    </div>
+
+    <nav class="paginacion" aria-label="Paginación del listado">
+      <button type="button" id="boton-anterior" class="boton">Anterior</button>
+      <span id="info-pagina"></span>
+      <button type="button" id="boton-siguiente" class="boton">Siguiente</button>
+    </nav>
+  </main>
+
+  <!-- Diálogo de alta y edición -->
+  <dialog id="dialogo-formulario" aria-labelledby="titulo-formulario">
+    <form id="formulario-persona">
+      <h2 id="titulo-formulario">Nueva persona</h2>
+
+      <!-- Validaciones del navegador (required, maxlength...): solo para comodidad del
+           usuario. La validación real la hace el servidor. -->
+      <div class="campo">
+        <label for="campo-nombres">Nombres</label>
+        <input id="campo-nombres" name="nombres" required maxlength="100" autocomplete="off">
+      </div>
+
+      <div class="campo">
+        <label for="campo-apellidos">Apellidos</label>
+        <input id="campo-apellidos" name="apellidos" required maxlength="100" autocomplete="off">
+      </div>
+
+      <div class="campo">
+        <label for="campo-documento">Nro. de documento</label>
+        <input id="campo-documento" name="nroDocumento" required maxlength="40" autocomplete="off">
+        <small class="ayuda">Se guarda sin puntos, guiones ni espacios.</small>
+      </div>
+
+      <div class="campo">
+        <label for="campo-fecha">Fecha de nacimiento</label>
+        <!-- El máximo (hoy) lo fija app.js al abrir el formulario -->
+        <input id="campo-fecha" name="fechaNacimiento" type="date" required min="1900-01-01">
+      </div>
+
+      <div class="campo">
+        <label for="campo-frente">Foto del documento: frente</label>
+        <input id="campo-frente" name="imagenFrente" type="file" accept="image/jpeg,image/png,image/webp">
+      </div>
+
+      <div class="campo">
+        <label for="campo-dorso">Foto del documento: dorso</label>
+        <input id="campo-dorso" name="imagenDorso" type="file" accept="image/jpeg,image/png,image/webp">
+      </div>
+
+      <p id="ayuda-imagenes" class="ayuda">JPEG, PNG o WebP, hasta 2 MB cada una.</p>
+
+      <!-- Errores devueltos por el servidor -->
+      <ul id="errores-formulario" class="errores" hidden></ul>
+
+      <div class="acciones-dialogo">
+        <button type="button" class="boton" data-cerrar>Cancelar</button>
+        <button type="submit" id="boton-guardar" class="boton boton-primario">Guardar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Diálogo de detalle (con las imágenes) -->
+  <dialog id="dialogo-detalle" aria-labelledby="titulo-detalle">
+    <h2 id="titulo-detalle">Detalle de la persona</h2>
+    <dl id="datos-detalle" class="datos"></dl>
+    <div class="imagenes">
+      <figure>
+        <img id="imagen-frente" alt="Foto del frente del documento">
+        <figcaption>Frente</figcaption>
+      </figure>
+      <figure>
+        <img id="imagen-dorso" alt="Foto del dorso del documento">
+        <figcaption>Dorso</figcaption>
+      </figure>
+    </div>
+    <div class="acciones-dialogo">
+      <button type="button" class="boton" data-cerrar>Cerrar</button>
+    </div>
+  </dialog>
+
+  <!-- Diálogo de confirmación de borrado -->
+  <dialog id="dialogo-confirmar" aria-labelledby="titulo-confirmar">
+    <h2 id="titulo-confirmar">Eliminar persona</h2>
+    <p id="texto-confirmar"></p>
+    <p class="ayuda">También se eliminarán las fotos del documento. Esta acción no se puede deshacer.</p>
+    <div class="acciones-dialogo">
+      <button type="button" class="boton" data-cerrar>Cancelar</button>
+      <button type="button" id="boton-confirmar-eliminar" class="boton boton-peligro">Eliminar</button>
+    </div>
+  </dialog>
 </body>
 </html>

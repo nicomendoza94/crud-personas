@@ -1,0 +1,302 @@
+/* =============================================================================
+   Estilos de la aplicación
+   ============================================================================= */
+
+/* Variables: colores y medidas reutilizados en todo el archivo */
+:root {
+  --color-primario: #1e3a5f;
+  --color-primario-hover: #2c5282;
+  --color-peligro: #b91c1c;
+  --color-texto: #1f2937;
+  --color-texto-suave: #6b7280;
+  --color-borde: #d1d5db;
+  --color-fondo: #f9fafb;
+  --color-exito-fondo: #dcfce7;
+  --color-exito-texto: #166534;
+  --color-error-fondo: #fee2e2;
+  --color-error-texto: #991b1b;
+  --radio: 6px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Garantiza que el atributo hidden oculte aunque otra regla defina "display" */
+[hidden] {
+  display: none !important;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: var(--color-texto);
+  background: var(--color-fondo);
+}
+
+/* --- Cabecera ------------------------------------------------------------ */
+.cabecera {
+  background: var(--color-primario);
+  color: #ffffff;
+  padding: 1rem 2rem;
+}
+
+.cabecera h1 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.aviso-sintetico {
+  margin: 0.25rem 0 0;
+  font-size: 0.85rem;
+  opacity: 0.85;
+}
+
+.contenido {
+  max-width: 1100px;
+  margin: 1.5rem auto;
+  padding: 0 1rem;
+}
+
+.barra-acciones {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+/* --- Botones ------------------------------------------------------------- */
+.boton {
+  padding: 0.45rem 0.9rem;
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio);
+  background: #ffffff;
+  color: var(--color-texto);
+  font: inherit;
+  cursor: pointer;
+}
+
+.boton:hover:not(:disabled) {
+  background: #f3f4f6;
+}
+
+.boton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.boton-primario {
+  background: var(--color-primario);
+  border-color: var(--color-primario);
+  color: #ffffff;
+}
+
+.boton-primario:hover:not(:disabled) {
+  background: var(--color-primario-hover);
+}
+
+.boton-peligro {
+  background: var(--color-peligro);
+  border-color: var(--color-peligro);
+  color: #ffffff;
+}
+
+.boton-peligro:hover:not(:disabled) {
+  background: #991b1b;
+}
+
+.boton-chico {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.85rem;
+}
+
+/* --- Mensajes de estado -------------------------------------------------- */
+.mensaje {
+  padding: 0.75rem 1rem;
+  border-radius: var(--radio);
+  margin: 0 0 1rem;
+}
+
+.mensaje.exito {
+  background: var(--color-exito-fondo);
+  color: var(--color-exito-texto);
+}
+
+.mensaje.error {
+  background: var(--color-error-fondo);
+  color: var(--color-error-texto);
+}
+
+/* --- Tabla --------------------------------------------------------------- */
+
+/* En pantallas angostas, la tabla se desplaza horizontalmente sin romper la página */
+.tabla-contenedor {
+  overflow-x: auto;
+  background: #ffffff;
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio);
+}
+
+.tabla {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.tabla th,
+.tabla td {
+  padding: 0.6rem 0.8rem;
+  text-align: left;
+  border-bottom: 1px solid var(--color-borde);
+  white-space: nowrap;
+}
+
+.tabla th {
+  background: #f3f4f6;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  color: var(--color-texto-suave);
+}
+
+.tabla tbody tr:hover {
+  background: #f9fafb;
+}
+
+.tabla .celda-acciones {
+  display: flex;
+  gap: 0.4rem;
+  justify-content: flex-end;
+}
+
+.tabla .celda-vacia {
+  text-align: center;
+  color: var(--color-texto-suave);
+  padding: 2rem;
+}
+
+/* --- Paginación ---------------------------------------------------------- */
+.paginacion {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+/* --- Diálogos ------------------------------------------------------------ */
+dialog {
+  width: min(560px, 92vw);
+  border: none;
+  border-radius: 10px;
+  padding: 1.5rem;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
+}
+
+/* Fondo oscurecido detrás del diálogo abierto con showModal() */
+dialog::backdrop {
+  background: rgba(15, 23, 42, 0.55);
+}
+
+dialog h2 {
+  margin-top: 0;
+}
+
+#dialogo-detalle {
+  width: min(900px, 94vw);
+}
+
+.acciones-dialogo {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+}
+
+/* --- Formulario ---------------------------------------------------------- */
+.campo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-bottom: 0.9rem;
+}
+
+.campo label {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.campo input {
+  padding: 0.5rem;
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio);
+  font: inherit;
+}
+
+.campo input:focus {
+  outline: 2px solid var(--color-primario-hover);
+  outline-offset: 1px;
+}
+
+.ayuda {
+  font-size: 0.85rem;
+  color: var(--color-texto-suave);
+  margin: 0;
+}
+
+.errores {
+  background: var(--color-error-fondo);
+  color: var(--color-error-texto);
+  border-radius: var(--radio);
+  padding: 0.75rem 0.75rem 0.75rem 2rem;
+  margin: 0.75rem 0 0;
+}
+
+/* --- Detalle ------------------------------------------------------------- */
+.datos {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.4rem 1rem;
+  margin: 0 0 1rem;
+}
+
+.datos dt {
+  font-weight: 600;
+  color: var(--color-texto-suave);
+}
+
+.datos dd {
+  margin: 0;
+}
+
+.imagenes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1rem;
+}
+
+.imagenes figure {
+  margin: 0;
+  text-align: center;
+}
+
+.imagenes img {
+  width: 100%;
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio);
+  background: #f3f4f6;
+}
+
+.imagenes figcaption {
+  font-size: 0.85rem;
+  color: var(--color-texto-suave);
+  margin-top: 0.3rem;
+}
+
+/* Oculto visualmente pero disponible para lectores de pantalla */
+.solo-lectores {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
