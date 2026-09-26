@@ -33,12 +33,33 @@ y geolocalización, y notificación a un grupo de Telegram.
 ```bash
    npm run migrar
 ```
+5. Cargar las 500 personas sintéticas de prueba:
+```bash
+   npm run seed
+```
+   Para borrar los datos existentes y volver a cargarlos: `npm run seed -- --reiniciar`.
 
-5. Iniciar la aplicación:
+6. Iniciar la aplicación:
 ```bash
    npm run dev
 ```
    Queda disponible en `http://127.0.0.1:3000`.
+
+## Datos de prueba
+
+Todos los datos son sintéticos, como exige la consigna:
+- Nombres y fechas de nacimiento generados con `@faker-js/faker`, con semilla fija
+  (el resultado es reproducible).
+- Números de documento consecutivos desde **90.000.001**: un rango que no corresponde a
+  documentos reales, para no asociar números existentes a nombres inventados.
+- Imágenes generadas por el propio script, con la leyenda **MUESTRA — DOCUMENTO NO VÁLIDO**.
+- Cada persona tiene sus propios archivos de imagen, para que eliminar una no afecte a otras.
+
+El seed incluye casos para verificar el cálculo de edad: una persona que cumple años el día
+de la carga y otra nacida un 29 de febrero. El script informa sus números de documento.
+
+Al finalizar la evaluación, los datos se eliminan con `npm run seed -- --reiniciar`
+seguido de la eliminación de la base, o directamente eliminando la base `crud_personas`.
 
 ## Arquitectura y stack
 _(pendiente)_
