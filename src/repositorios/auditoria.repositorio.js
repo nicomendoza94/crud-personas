@@ -18,3 +18,26 @@ export async function registrar({ termino, criterio, cantidadResultados, ip, ipO
   );
   return rows[0];
 }
+
+/** Guarda el resultado de la geolocalización de la IP de un registro. */
+export async function actualizarGeolocalizacion(id, geo) {
+  await pool.query(
+    `UPDATE auditoria_busquedas
+        SET geo_estado       = $2,
+            geo_pais         = $3,
+            geo_ciudad       = $4,
+            geo_organizacion = $5,
+            geo_latitud      = $6,
+            geo_longitud     = $7
+      WHERE id = $1`,
+    [
+      id,
+      geo.estado,
+      geo.pais ?? null,
+      geo.ciudad ?? null,
+      geo.organizacion ?? null,
+      geo.latitud ?? null,
+      geo.longitud ?? null,
+    ],
+  );
+}

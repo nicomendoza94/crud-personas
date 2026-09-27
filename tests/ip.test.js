@@ -7,7 +7,7 @@
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizarIp, resolverIpCliente } from '../src/utils/ip.js';
+import { normalizarIp, resolverIpCliente, esIpNoPublica } from '../src/utils/ip.js';
 
 describe('resolverIpCliente', () => {
   it('usa CF-Connecting-IP cuando la conexión viene del túnel (loopback)', () => {
@@ -61,5 +61,20 @@ describe('normalizarIp', () => {
   it('devuelve null para valores que no son IPs', () => {
     assert.equal(normalizarIp('999.1.1.1'), null);
     assert.equal(normalizarIp(undefined), null);
+  });
+});
+
+describe('esIpNoPublica', () => {
+  it('detecta direcciones privadas, locales y de documentación', () => {
+    for (const ip of ['127.0.0.1', '10.1.2.3', '172.20.0.5', '192.168.1.50', '203.0.113.10', '::1', 'fd12::1', '2001:db8::5']) {
+      assert.equal(esIpNoPublica(ip), true, ip);
+    }
+  });
+
+  it('reconoce direcciones públicas', () => {
+    // Servidores DNS públicos de Cloudflare y Google: no identifican a una persona
+    for (const ip of ['1.1.1.1', '8.8.8.8', '2606:4700:4700::1111']) {
+      assert.equal(esIpNoPublica(ip), false, ip);
+    }
   });
 });

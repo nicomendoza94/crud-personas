@@ -41,6 +41,11 @@ const esquema = z.object({
   CAPTCHA_VIGENCIA_MINUTOS: z.coerce.number().int().min(1).max(120).default(10),
   CAPTCHA_MAXIMO_BUSQUEDAS: z.coerce.number().int().min(1).max(500).default(20),
 
+  // --- Geolocalización de IP ---
+  // Tiempo máximo de espera de la API (ms). Configurable para poder probar el
+  // comportamiento ante demoras (ej: 1 ms fuerza un timeout).
+  GEOLOCALIZACION_TIEMPO_MAXIMO_MS: z.coerce.number().int().min(1).max(10_000).default(3000),
+
   // --- Base de datos ---
   DB_HOST: z.string().min(1).default('127.0.0.1'),
   DB_PUERTO: z.coerce.number().int().min(1).max(65535).default(5432),
@@ -78,6 +83,10 @@ export const config = Object.freeze({
     claveSecreta: variables.TURNSTILE_CLAVE_SECRETA,
     vigenciaMinutos: variables.CAPTCHA_VIGENCIA_MINUTOS,
     maximoBusquedas: variables.CAPTCHA_MAXIMO_BUSQUEDAS,
+  }),
+
+  geolocalizacion: Object.freeze({
+    tiempoMaximoMs: variables.GEOLOCALIZACION_TIEMPO_MAXIMO_MS,
   }),
 
   db: Object.freeze({

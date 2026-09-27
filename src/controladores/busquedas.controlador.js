@@ -35,7 +35,11 @@ export async function verificarCaptcha(req, res) {
 /**
  * POST /api/busquedas  { "termino": "..." }
  * Requiere una sesión de búsqueda vigente (middleware exigirSesionBusqueda).
- * Cada búsqueda ejecutada queda registrada en la auditoría antes de responder.
+ *
+ * 1. Busca.
+ * 2. Registra la búsqueda en la auditoría (antes de responder).
+ * 3. Responde al usuario.
+ * 4. Completa la auditoría en segundo plano (geolocalización), sin demorar la respuesta.
  */
 export async function buscar(req, res) {
   const { termino } = validar(esquemaBusqueda, req.body ?? {});
@@ -43,7 +47,7 @@ export async function buscar(req, res) {
 
   // Si el registro falla, el error llega al manejador global y el usuario
   // no recibe los resultados: no se entregan búsquedas sin auditar.
-  await auditoriaServicio.registrarBusqueda({
+  const registro = await auditoriaServicio.registrarBusqueda({
     termino,
     criterio: resultado.criterio,
     cantidadResultados: resultado.cantidad,
@@ -55,4 +59,7 @@ export async function buscar(req, res) {
     // Informa al cliente cuánto le queda de la sesión actual
     sesion: res.locals.sesionBusqueda,
   });
+
+  // Sin await: la respuesta ya se envió y el usuario no espera a las APIs externas
+  auditoriaServicio.completarEnSegundoPlano(registro, res.locals.ipCliente);
 }

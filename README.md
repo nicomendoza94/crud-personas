@@ -147,6 +147,35 @@ La aplicación se expone mediante Cloudflare Tunnel: el visitante se conecta a C
 `cloudflared` (en esta misma máquina) reenvía la petición a la aplicación. Para la aplicación,
 todas las conexiones provienen de `127.0.0.1`, por lo que la IP de la conexión no sirve.
 
+## Geolocalización de la IP
+
+**API elegida:** [ipapi.co](https://ipapi.co), gratuita y sin registro. Funciona por HTTPS y
+entrega país, ciudad, organización y coordenadas aproximadas. Se descartó ip-api.com porque su
+plan gratuito solo funciona por HTTP: enviaría las IPs de los visitantes sin cifrar.
+
+**Cuándo se consulta:** después de responder al usuario, en segundo plano. La búsqueda nunca
+espera a la API. El resultado actualiza el registro de auditoría ya creado.
+
+**Tolerancia a fallas** (el estado queda registrado en `geo_estado`):
+
+| Situación | Comportamiento | Estado |
+|---|---|---|
+| IP privada, loopback o reservada | No se consulta la API | `ip_privada` |
+| Respuesta con datos | Se guardan país, ciudad, organización y coordenadas | `ok` |
+| La API no tiene datos de esa IP | Se registra sin datos | `sin_datos` |
+| Límite de uso superado (HTTP 429) | Se dejan de hacer consultas durante el tiempo indicado por `Retry-After` (60 s por defecto) | `limite_excedido` |
+| Sin respuesta, error o demora | Tiempo máximo de 3 s (`GEOLOCALIZACION_TIEMPO_MAXIMO_MS`) | `error` |
+
+- La función de geolocalización nunca lanza errores; la tarea en segundo plano captura cualquier
+  otro error (por ejemplo, de la base) y lo registra en el log. En ese caso la columna queda en
+  `pendiente`.
+- **Caché en memoria de 24 horas** (máximo 1000 IPs): una misma IP no se consulta más de una vez
+  por día, lo que protege la cuota gratuita.
+- Los datos recibidos se tratan como externos: los textos se recortan al largo de cada columna y
+  las coordenadas se validan antes de guardarlas.
+- La geolocalización por IP es aproximada: indica dónde está registrado un bloque de direcciones,
+  no la ubicación física de la persona.
+
 **Regla implementada** (`src/utils/ip.js`):
 - Si la conexión proviene de loopback (`127.0.0.0/8` o `::1`), es decir, del túnel, se usa el
   encabezado **`CF-Connecting-IP`**, validado como IP con `net.isIP`.
