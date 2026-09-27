@@ -18,6 +18,29 @@ y geolocalización, y notificación a un grupo de Telegram.
    cd crud-personas
    npm install
 ```
+## Despliegue (Cloudflare Tunnel)
+
+1. En `.env`: `NODE_ENV=production` (cookie de sesión `Secure`, el seed no se ejecuta).
+2. Iniciar la aplicación: `npm start`.
+3. En otra terminal, publicarla con un Quick Tunnel:
+```bash
+   cloudflared tunnel --url http://127.0.0.1:3000
+```
+   Se usa `127.0.0.1` y no `localhost`, porque la aplicación escucha solo en IPv4 loopback.
+4. En Cloudflare → Turnstile, agregar el hostname del túnel (`xxxx.trycloudflare.com`) al widget y
+   configurar sus claves en `.env`.
+
+El túnel debe permanecer activo durante toda la ventana de evaluación: si se reinicia, la URL
+cambia. No requiere abrir puertos: `cloudflared` inicia la conexión saliente hacia Cloudflare.
+
+**Nota de entorno:** durante las pruebas, la red doméstica perdía la conectividad con la API de
+Telegram de forma intermitente (primero por IPv6, luego por IPv4). El sistema toleró la falla
+(búsquedas sin afectarse y el error registrado en la auditoría). Para la evaluación, el equipo se
+conecta mediante datos móviles, donde la conexión es estable.
+Además, el DNS de esa red móvil no resolvía el subdominio de `trycloudflare.com`; se accedió
+usando DNS seguro (1.1.1.1). Es una limitación del proveedor, no del túnel.
+
+Al finalizar la evaluación se apaga el túnel (Ctrl + C) y se eliminan los datos cargados.
 
 2. Crear el usuario y la base de datos (conectado como superusuario, por ejemplo `psql -U postgres`).
    La aplicación usa un usuario propio sin privilegios de superusuario:
@@ -66,7 +89,37 @@ Al finalizar la evaluación, los datos se eliminan con `npm run seed -- --reinic
 seguido de la eliminación de la base, o directamente eliminando la base `crud_personas`.
 
 ## Arquitectura y stack
-_(pendiente)_
+
+API REST organizada en capas, con un front end en JavaScript sin frameworks que la consume.
+
+```
+Navegador (public/: HTML, CSS y JS vanilla)
+   │ fetch (JSON / multipart)
+   ▼
+Express 5 (src/)
+   ├── middlewares/    IP real, límites de solicitudes, sesión de búsqueda, subida, errores
+   ├── rutas/          qué URL y método atiende cada controlador
+   ├── controladores/  capa HTTP: valida la entrada, llama al servicio, arma la respuesta
+   ├── servicios/      lógica: personas, imágenes, captcha, auditoría, geolocalización, Telegram
+   ├── repositorios/   única capa con SQL (consultas parametrizadas)
+   └── validaciones/   esquemas zod
+   ▼
+PostgreSQL (migraciones SQL versionadas en src/db/migraciones)
+```
+
+| Componente | Elección | Motivo |
+|---|---|---|
+| Lenguaje y servidor | Node.js 22+ con Express 5 | Tecnología que domino; Express es minimalista (sin generación automática) y la versión 5 envía los errores de funciones `async` al manejador global |
+| Base de datos | PostgreSQL | Restricciones en la base (`UNIQUE`, `CHECK`), índices de trigramas para la búsqueda, tipo `INET` para IPs, DDL transaccional para las migraciones |
+| Acceso a datos | `pg` sin ORM | SQL explícito y parametrizado: se puede auditar exactamente qué consulta se ejecuta |
+| Validación | `zod` | Esquemas declarativos para entradas y variables de entorno |
+| Imágenes | `multer`, `file-type`, `sharp` | Recepción en memoria, detección del tipo real y re-codificación |
+| Seguridad HTTP | `helmet`, `express-rate-limit` | Encabezados de seguridad (CSP) y límite de solicitudes por IP |
+| Front end | HTML, CSS y JS sin frameworks | Sin paso de compilación; los datos se insertan siempre con `textContent` |
+| Tests | `node:test` | Incluido en Node, sin dependencias adicionales |
+
+Configuración centralizada en `src/config/entorno.js`: todas las variables se validan al iniciar
+y la aplicación no arranca si falta alguna.
 
 ## Almacenamiento de imágenes
 
@@ -353,7 +406,25 @@ autenticación, control de acceso por roles y auditoría de las consultas al pro
   no contienen el término buscado ni la IP completa.
 
 ## Fuera de alcance y mejoras futuras
-_(pendiente)_
+
+- **Autenticación y roles.** Excluida por la consigna. En producción, el CRUD y sobre todo el
+  historial requerirían autenticación, control de acceso por roles y auditoría de las consultas
+  al propio historial.
+- **Túnel estable.** Se usó un Quick Tunnel de Cloudflare (URL aleatoria, sin garantía de
+  disponibilidad) por tratarse de una evaluación acotada. Para un despliegue estable usaría un
+  túnel con nombre en un dominio propio, con `cloudflared` como servicio del sistema.
+- **Reintentos de Telegram.** Hoy un envío fallido queda registrado y no se reintenta. Mejora:
+  una cola con reintentos y espera progresiva, respetando `retry_after` ante un 429.
+- **Escalabilidad del listado.** Con decenas de miles de registros, `OFFSET` se vuelve costoso en
+  páginas profundas; se pasaría a paginación por *keyset*.
+- **Varias instancias.** Imágenes en almacenamiento de objetos (S3, R2); contadores de límites y
+  caché de geolocalización en un almacenamiento compartido (Redis); retención con una tarea
+  programada externa.
+- **Limpieza de imágenes huérfanas.** Si falla el borrado de un archivo queda huérfano; una tarea
+  periódica compararía la carpeta con la base.
+- **Tests de integración** de la API contra una base de prueba (hoy hay tests unitarios de edad,
+  imágenes, IP y del mensaje a Telegram).
+- **Logs estructurados** y centralizados, en lugar de la salida por consola.
 
 ## Uso de inteligencia artificial
 
@@ -368,3 +439,6 @@ Cada entrada registra en qué se usó, qué errores cometió la herramienta y qu
 | 2026-09-25 | Documentación | Propuesta de ubicación de la bitácora de IA | La ubicó en un archivo aparte (`docs/uso-ia.md`), aunque la consigna pide documentarla en el README; se movió al README |
 | 2026-09-25 | Planificación | Orden de los commits | El plan separaba el CRUD de la subida de imágenes, pero las imágenes son obligatorias (NOT NULL): no era posible dar de alta sin ellas. Se reorganizó en commits de lectura y de escritura con imágenes |
 | 2026-09-26 | Seed | Generación de apellidos con faker | Supuso que `faker.person.lastName()` devuelve un apellido, pero en español devuelve dos: las personas quedaban con cuatro apellidos. Se detectó al revisar los resultados de búsqueda y se corrigió |
+| 2026-09-26 | Instrucciones de edición | Pasos para modificar archivos existentes | Algunas indicaciones ("actualizá el import") eran ambiguas y derivaron en declaraciones duplicadas (`esquemaId`, `mostrarResultadosBusqueda`) que rompían el módulo. Se detectaron con los errores de Node y de la consola del navegador y se corrigieron |
+| 2026-09-27 | Conectividad con Telegram | Diagnóstico de timeouts | La solución propuesta (priorizar IPv4) resolvió el problema inicial, pero luego la ruta IPv4 también falló. Se diagnosticó como inestabilidad de la red doméstica y se decidió usar datos móviles durante la evaluación |
+| 2026-09-27 | Pruebas en el túnel | Obtención de la cookie de sesión | Indicó buscar la cookie en la vista de cookies de Chrome, donde no aparece por su `Path=/api/busquedas`. Se obtuvo desde la pestaña Network |
