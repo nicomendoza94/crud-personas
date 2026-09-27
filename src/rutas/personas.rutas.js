@@ -6,6 +6,7 @@
 import { Router } from 'express';
 import * as controlador from '../controladores/personas.controlador.js';
 import { subirImagenesPersona } from '../middlewares/subida.js';
+import { limiteEscrituras } from '../middlewares/limitesSolicitudes.js';
 
 const router = Router();
 
@@ -13,9 +14,10 @@ router.get('/', controlador.listar);
 router.get('/:id', controlador.obtener);
 router.get('/:id/imagenes/:lado', controlador.obtenerImagen);
 
-// El middleware de subida procesa el formulario multipart antes del controlador
-router.post('/', subirImagenesPersona, controlador.crear);
-router.put('/:id', subirImagenesPersona, controlador.actualizar);
-router.delete('/:id', controlador.eliminar);
+// Escritura: límite de frecuencia y luego el procesamiento del formulario multipart.
+// El límite va primero: una solicitud rechazada no llega a procesar imágenes.
+router.post('/', limiteEscrituras, subirImagenesPersona, controlador.crear);
+router.put('/:id', limiteEscrituras, subirImagenesPersona, controlador.actualizar);
+router.delete('/:id', limiteEscrituras, controlador.eliminar);
 
 export default router;

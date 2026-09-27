@@ -13,6 +13,7 @@ import cookieParser from 'cookie-parser';
 import rutasConfiguracion from './rutas/configuracion.rutas.js';
 import { identificarIpCliente } from './middlewares/ipCliente.js';
 import rutasAuditoria from './rutas/auditoria.rutas.js';
+import { limiteGeneral } from './middlewares/limitesSolicitudes.js';
 
 // import.meta.dirname es la carpeta de este archivo (src/). La carpeta pública está un nivel arriba.
 const RUTA_PUBLICA = path.join(import.meta.dirname, '..', 'public');
@@ -45,6 +46,9 @@ export function crearApp() {
 
   // Lectura de cookies (sesión de búsqueda habilitada por el captcha)
   app.use(cookieParser());
+
+    //  Límite general de solicitudes por IP (el visitante real, ya identificado)
+  app.use('/api', limiteGeneral);
 
   // 3. Rutas de la API
   //    Las respuestas de la API contienen datos personales: se indica que no deben

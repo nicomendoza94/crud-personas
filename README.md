@@ -243,6 +243,25 @@ búsqueda descuenta una unidad, aunque el término sea inválido.
   al front mediante `GET /api/configuracion`; la secreta nunca sale del servidor.
 - La CSP solo permite scripts e iframes del propio servidor y de `challenges.cloudflare.com`.
 
+## Límite de solicitudes por IP
+
+Se limita la frecuencia de solicitudes por visitante con `express-rate-limit`:
+
+| Límite | Aplica a | Máximo por IP y por minuto | Motivo |
+|---|---|---|---|
+| General | Toda la API | 120 | Holgado para el uso normal |
+| Búsquedas | Verificación del captcha y búsquedas | 20 | Protege las cuotas de geolocalización y de Telegram (unos 20 mensajes por minuto por grupo) |
+| Escritura | Alta, edición y baja | 20 | Protege la CPU: cada alta procesa imágenes |
+
+- La clave de cada contador es la **IP real del visitante** (ver "Obtención de la IP del visitante"):
+  detrás del túnel, usar la IP de la conexión haría que todos los visitantes compartieran un
+  único contador.
+- Las IPv6 se agrupan por bloque `/56`: un usuario dispone de muchas direcciones y podría rotarlas.
+- Al superar un límite la respuesta es `429` con `Retry-After` y el código `LIMITE_SOLICITUDES`.
+- El límite se aplica antes de procesar formularios e imágenes.
+- Los contadores están en memoria: se reinician con el servidor y no se comparten entre varias
+  instancias (en ese caso se usaría un almacenamiento compartido, como Redis).
+
 ## Información enviada a Telegram
 
 Cada búsqueda genera una notificación a un grupo de Telegram, enviada en segundo plano después de
