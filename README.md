@@ -45,6 +45,10 @@ y geolocalización, y notificación a un grupo de Telegram.
 ```
    Queda disponible en `http://127.0.0.1:3000`.
 
+> **Nota:** los scripts `dev` y `start` usan `--dns-result-order=ipv4first`. En redes con IPv6
+> configurado pero sin salida a internet, Node intentaba conectarse a la API de Telegram por
+> IPv6 y la conexión agotaba su tiempo de espera. Con esta opción se prioriza IPv4.
+
 ## Datos de prueba
 
 Todos los datos son sintéticos, como exige la consigna:
@@ -240,10 +244,71 @@ búsqueda descuenta una unidad, aunque el término sea inválido.
 - La CSP solo permite scripts e iframes del propio servidor y de `challenges.cloudflare.com`.
 
 ## Información enviada a Telegram
-_(pendiente)_
+
+Cada búsqueda genera una notificación a un grupo de Telegram, enviada en segundo plano después de
+responder al usuario.
+
+**Contexto:** Telegram es un tercero fuera del control de la organización. Los mensajes quedan en
+sus servidores (los chats de grupo no tienen cifrado de extremo a extremo), los ven todos los
+miembros del grupo, incluidos los futuros, pueden reenviarse, y no se les aplica nuestra política
+de retención.
+
+**Criterio: minimización de datos.** La notificación sirve para avisar *que* ocurrió una búsqueda
+y detectar actividad anómala (ráfagas, horarios inusuales, orígenes inesperados). No reemplaza a
+la auditoría: el detalle queda en la base.
+
+| Se envía | Motivo |
+|---|---|
+| Número de registro de auditoría | Permite consultar el detalle en el historial sin exponerlo |
+| Fecha y hora | Detectar patrones temporales |
+| Criterio (nombre o documento) | Tipo de búsqueda, sin revelar qué se buscó |
+| Cantidad de resultados | Distinguir búsquedas amplias de búsquedas puntuales |
+| País (aproximado) | Detectar accesos desde orígenes inesperados |
+| IP enmascarada (`181.120.5.x`) | Relacionar búsquedas de un mismo origen sin identificar al visitante |
+
+| Se omite | Motivo |
+|---|---|
+| Término buscado | Puede ser el nombre o el número de documento de una persona: es el dato más sensible |
+| Resultados | Datos personales de las personas encontradas |
+| IP completa | Dato personal del visitante: con la IP y la fecha, un proveedor puede identificarlo |
+| Ciudad, organización y coordenadas | Precisan demasiado la ubicación o identifican al proveedor o la empresa del visitante |
+
+**Implementación:**
+- La función que arma el mensaje (`src/utils/mensajeTelegram.js`) ni siquiera recibe el término
+  buscado: no puede incluirse por error. Los tests lo verifican pasándoselo a propósito.
+- El mensaje se envía como texto plano, sin `parse_mode`: parte del contenido proviene de una API
+  externa y no debe interpretarse como HTML ni Markdown.
+- El token del bot y el identificador del chat se leen de variables de entorno. Los errores se
+  registran con una descripción propia, nunca con la URL de la API (que contiene el token).
+- El bot se configuró en BotFather para no poder ser agregado a otros grupos (`/setjoingroups`).
+
+**Configuración del bot:** se crea con `@BotFather` (`/newbot`), se agrega al grupo y se envía
+`/start@nombre_del_bot` en el grupo. El identificador del chat se obtiene con el método
+`getUpdates` de la API.
 
 ## Fallas de APIs externas
-_(pendiente)_
+
+Principio: las integraciones **complementarias** (geolocalización y Telegram) nunca afectan la
+búsqueda; los **controles** (captcha y auditoría) fallan cerrados.
+
+| Integración | Momento | Si falla |
+|---|---|---|
+| Captcha (Cloudflare) | Antes de buscar | **No se habilita la búsqueda** (503): es un control de seguridad |
+| Registro de auditoría (base) | Antes de responder | **No se entregan los resultados**: no hay búsquedas sin auditar |
+| Geolocalización (ipapi.co) | Después de responder | La búsqueda no se afecta; queda `geo_estado` con el motivo |
+| Telegram | Después de responder | La búsqueda no se afecta; queda `telegram_estado = 'error'` y el detalle |
+
+**Telegram en particular:**
+- Tiempo máximo de espera: 5 s (`TELEGRAM_TIEMPO_MAXIMO_MS`).
+- Se valida que la respuesta tenga `ok: true`; cualquier otra respuesta es un error.
+- Casos identificados en el detalle: token inválido (401), **bot removido del grupo** o sin
+  permiso (403), grupo convertido en supergrupo (id nuevo informado), límite de envíos (429),
+  sin respuesta o demora.
+- No se reintenta el envío (mejora posible, ver "Fuera de alcance").
+
+Las tareas posteriores a la respuesta se ejecutan sin `await` y con un `.catch` obligatorio: un
+error no capturado terminaría el proceso de Node. Si la tarea no llega a completarse, la columna
+correspondiente queda en `pendiente`.
 
 ## Política de retención
 _(pendiente)_

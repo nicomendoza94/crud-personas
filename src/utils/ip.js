@@ -91,3 +91,29 @@ export function esIpNoPublica(ip) {
   const tipo = net.isIPv6(ip) ? 'ipv6' : 'ipv4';
   return RANGOS_NO_PUBLICOS.check(ip, tipo);
 }
+
+/** Expande una IPv6 abreviada a sus 8 grupos ("2001:db8::5" -> 2001,db8,0,0,0,0,0,5). */
+function expandirIpv6(ip) {
+  const [izquierda, derecha = ''] = ip.split('::');
+  const gruposIzquierda = izquierda ? izquierda.split(':') : [];
+  const gruposDerecha = derecha ? derecha.split(':') : [];
+  const faltantes = 8 - gruposIzquierda.length - gruposDerecha.length;
+  return [...gruposIzquierda, ...Array(faltantes).fill('0'), ...gruposDerecha];
+}
+
+/**
+ * Oculta la parte de la IP que identifica a un equipo concreto:
+ *  - IPv4: el último número ("181.120.5.10" -> "181.120.5.x").
+ *  - IPv6: todo salvo los tres primeros grupos, que identifican la red
+ *    ("2800:a4:1234:5678::1" -> "2800:a4:1234:x:x:x:x:x").
+ * Permite notar búsquedas desde un mismo origen sin identificar al visitante.
+ */
+export function enmascararIp(ip) {
+  if (net.isIPv4(ip)) {
+    return `${ip.split('.').slice(0, 3).join('.')}.x`;
+  }
+  if (net.isIPv6(ip)) {
+    return `${expandirIpv6(ip).slice(0, 3).join(':')}:x:x:x:x:x`;
+  }
+  return 'desconocida';
+}

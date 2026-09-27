@@ -41,3 +41,11 @@ export async function actualizarGeolocalizacion(id, geo) {
     ],
   );
 }
+
+/** Guarda el resultado del envío de la notificación a Telegram. */
+export async function actualizarTelegram(id, { estado, detalle }) {
+  await pool.query(
+    'UPDATE auditoria_busquedas SET telegram_estado = $2, telegram_detalle = $3 WHERE id = $1',
+    [id, estado, detalle ?? null],
+  );
+}

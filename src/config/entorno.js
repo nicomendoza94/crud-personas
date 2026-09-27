@@ -46,6 +46,13 @@ const esquema = z.object({
   // comportamiento ante demoras (ej: 1 ms fuerza un timeout).
   GEOLOCALIZACION_TIEMPO_MAXIMO_MS: z.coerce.number().int().min(1).max(10_000).default(3000),
 
+  // --- Notificaciones a Telegram ---
+  // Formato del token: <número>:<texto>, tal como lo entrega BotFather
+  TELEGRAM_TOKEN_BOT: z.string().regex(/^\d+:[A-Za-z0-9_-]{30,}$/, 'Formato de token inválido'),
+  // Los grupos tienen ids negativos; los chats privados, positivos
+  TELEGRAM_CHAT_ID: z.string().regex(/^-?\d+$/, 'Debe ser un número'),
+  TELEGRAM_TIEMPO_MAXIMO_MS: z.coerce.number().int().min(1).max(10_000).default(5000),
+
   // --- Base de datos ---
   DB_HOST: z.string().min(1).default('127.0.0.1'),
   DB_PUERTO: z.coerce.number().int().min(1).max(65535).default(5432),
@@ -87,6 +94,12 @@ export const config = Object.freeze({
 
   geolocalizacion: Object.freeze({
     tiempoMaximoMs: variables.GEOLOCALIZACION_TIEMPO_MAXIMO_MS,
+  }),
+
+  telegram: Object.freeze({
+    token: variables.TELEGRAM_TOKEN_BOT,
+    chatId: variables.TELEGRAM_CHAT_ID,
+    tiempoMaximoMs: variables.TELEGRAM_TIEMPO_MAXIMO_MS,
   }),
 
   db: Object.freeze({

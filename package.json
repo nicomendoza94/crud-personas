@@ -11,8 +11,8 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "node --watch --env-file=.env src/servidor.js",
-    "start": "node --env-file=.env src/servidor.js",
+    "dev": "node --watch --env-file=.env --dns-result-order=ipv4first src/servidor.js",
+    "start": "node --env-file=.env --dns-result-order=ipv4first src/servidor.js",
     "migrar": "node --env-file=.env src/db/migrar.js",
     "seed": "node --env-file=.env src/db/seed.js",
     "test": "node --test"

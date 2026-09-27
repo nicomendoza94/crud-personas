@@ -4,11 +4,14 @@
  * 1. registrarBusqueda(): crea el registro ANTES de responder al usuario.
  *    Si falla, la búsqueda no se entrega (la auditoría es un control).
  * 2. completarEnSegundoPlano(): DESPUÉS de responder, agrega la geolocalización
- *    de la IP (y, en el próximo paso, la notificación a Telegram). Sus fallas
- *    no afectan al usuario: quedan registradas en el estado de cada columna.
+ *    de la IP y envía la notificación a Telegram. Sus fallas no afectan al
+ *    usuario: quedan registradas en el estado de cada columna.
  */
+import { config } from '../config/entorno.js';
 import * as repositorio from '../repositorios/auditoria.repositorio.js';
 import { geolocalizar } from './geolocalizacion.servicio.js';
+import { enviarMensaje } from './telegram.servicio.js';
+import { construirMensajeBusqueda } from '../utils/mensajeTelegram.js';
 
 /**
  * @param {object} busqueda
@@ -16,7 +19,7 @@ import { geolocalizar } from './geolocalizacion.servicio.js';
  * @param {'nombre'|'documento'} busqueda.criterio
  * @param {number} busqueda.cantidadResultados
  * @param {{ ip: string, origen: 'cloudflare'|'conexion' }} busqueda.ipCliente
- * @returns {Promise<{ id: number, fechaHora: Date }>}
+ * @returns {Promise<{ id: number, fechaHora: Date, criterio: string, cantidadResultados: number }>}
  */
 export async function registrarBusqueda({ termino, criterio, cantidadResultados, ipCliente }) {
   const registro = await repositorio.registrar({
@@ -26,14 +29,26 @@ export async function registrarBusqueda({ termino, criterio, cantidadResultados,
     ip: ipCliente.ip,
     ipOrigen: ipCliente.origen,
   });
-  return { id: registro.id, fechaHora: registro.fecha_hora };
+  // Se devuelve lo necesario para completar el registro después, SIN el término:
+  // las tareas en segundo plano (y el mensaje a Telegram) no lo necesitan.
+  return { id: registro.id, fechaHora: registro.fecha_hora, criterio, cantidadResultados };
 }
 
 /** Tareas que completan el registro después de responder al usuario. */
 async function completarRegistro(registro, ipCliente) {
-  // geolocalizar() nunca lanza errores: siempre devuelve un estado
+  // 1. Geolocalización (nunca lanza errores: siempre devuelve un estado)
   const geo = await geolocalizar(ipCliente.ip);
-  await repositorio.actualizarGeolocalizacion(registro.id, geo);
+  try {
+    await repositorio.actualizarGeolocalizacion(registro.id, geo);
+  } catch (err) {
+    // Si no se pudo guardar, igual se intenta la notificación
+    console.error(`Auditoría ${registro.id}: no se pudo guardar la geolocalización:`, err.message);
+  }
+
+  // 2. Notificación a Telegram (nunca lanza errores: devuelve estado y detalle)
+  const mensaje = construirMensajeBusqueda({ ...registro, ip: ipCliente.ip, geo }, config.zonaHoraria);
+  const envio = await enviarMensaje(mensaje);
+  await repositorio.actualizarTelegram(registro.id, envio);
 }
 
 /**

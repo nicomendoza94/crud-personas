@@ -7,7 +7,7 @@
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizarIp, resolverIpCliente, esIpNoPublica } from '../src/utils/ip.js';
+import { normalizarIp, resolverIpCliente, esIpNoPublica, enmascararIp } from '../src/utils/ip.js';
 
 describe('resolverIpCliente', () => {
   it('usa CF-Connecting-IP cuando la conexión viene del túnel (loopback)', () => {
@@ -76,5 +76,16 @@ describe('esIpNoPublica', () => {
     for (const ip of ['1.1.1.1', '8.8.8.8', '2606:4700:4700::1111']) {
       assert.equal(esIpNoPublica(ip), false, ip);
     }
+  });
+});
+
+describe('enmascararIp', () => {
+  it('oculta el último número de una IPv4', () => {
+    assert.equal(enmascararIp('203.0.113.10'), '203.0.113.x');
+  });
+
+  it('conserva solo los tres primeros grupos de una IPv6, aunque esté abreviada', () => {
+    assert.equal(enmascararIp('2001:db8:1234:5678::1'), '2001:db8:1234:x:x:x:x:x');
+    assert.equal(enmascararIp('2001:db8::5'), '2001:db8:0:x:x:x:x:x');
   });
 });
