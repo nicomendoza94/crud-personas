@@ -53,6 +53,10 @@ const esquema = z.object({
   TELEGRAM_CHAT_ID: z.string().regex(/^-?\d+$/, 'Debe ser un número'),
   TELEGRAM_TIEMPO_MAXIMO_MS: z.coerce.number().int().min(1).max(10_000).default(5000),
 
+  // --- Auditoría ---
+  // Días que se conservan los registros de búsquedas (política de retención)
+  RETENCION_AUDITORIA_DIAS: z.coerce.number().int().min(1).max(365).default(30),
+
   // --- Base de datos ---
   DB_HOST: z.string().min(1).default('127.0.0.1'),
   DB_PUERTO: z.coerce.number().int().min(1).max(65535).default(5432),
@@ -100,6 +104,10 @@ export const config = Object.freeze({
     token: variables.TELEGRAM_TOKEN_BOT,
     chatId: variables.TELEGRAM_CHAT_ID,
     tiempoMaximoMs: variables.TELEGRAM_TIEMPO_MAXIMO_MS,
+  }),
+
+  auditoria: Object.freeze({
+    retencionDias: variables.RETENCION_AUDITORIA_DIAS,
   }),
 
   db: Object.freeze({

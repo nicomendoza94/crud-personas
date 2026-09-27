@@ -10,6 +10,7 @@ import http from 'node:http';
 import { config } from './config/entorno.js';
 import { crearApp } from './app.js';
 import { verificarConexion, cerrarPool } from './db/conexion.js';
+import { programarRetencion } from './servicios/auditoria.servicio.js';
 
 // Fallar rápido: si la base de datos no responde, no tiene sentido levantar el servidor.
 try {
@@ -20,6 +21,9 @@ try {
   console.error('No se pudo conectar a la base de datos:', err.message);
   process.exit(1);
 }
+
+// Política de retención del historial de búsquedas (al iniciar y luego cada 24 h)
+programarRetencion();
 
 const app = crearApp();
 const servidor = http.createServer(app);

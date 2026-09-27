@@ -39,6 +39,11 @@ body {
   background: var(--color-primario);
   color: #ffffff;
   padding: 1rem 2rem;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
 }
 
 .cabecera h1 {
@@ -330,4 +335,66 @@ dialog h2 {
   justify-content: center;
   min-height: 70px; /* Reserva el lugar del widget mientras carga */
   margin: 1rem 0;
+}
+
+/* --- Navegación ---------------------------------------------------------- */
+.navegacion {
+  display: flex;
+  gap: 1.25rem;
+}
+
+.navegacion a {
+  color: #ffffff;
+  text-decoration: none;
+  opacity: 0.8;
+}
+
+.navegacion a:hover,
+.navegacion a[aria-current="page"] {
+  opacity: 1;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+/* --- Historial ----------------------------------------------------------- */
+
+/* En el historial se permite partir las líneas: hay textos largos (detalles de error) */
+.tabla-historial td {
+  white-space: normal;
+  vertical-align: top;
+}
+
+.texto-secundario {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--color-texto-suave);
+  margin-top: 0.15rem;
+}
+
+.estado {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.estado-ok {
+  background: var(--color-exito-fondo);
+  color: var(--color-exito-texto);
+}
+
+.estado-error {
+  background: var(--color-error-fondo);
+  color: var(--color-error-texto);
+}
+
+.estado-pendiente {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.estado-neutro {
+  background: #f3f4f6;
+  color: var(--color-texto-suave);
 }

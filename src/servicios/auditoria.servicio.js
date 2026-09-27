@@ -12,6 +12,7 @@ import * as repositorio from '../repositorios/auditoria.repositorio.js';
 import { geolocalizar } from './geolocalizacion.servicio.js';
 import { enviarMensaje } from './telegram.servicio.js';
 import { construirMensajeBusqueda } from '../utils/mensajeTelegram.js';
+import { TAMANIO_PAGINA } from './personas.servicio.js';
 
 /**
  * @param {object} busqueda
@@ -62,4 +63,91 @@ export function completarEnSegundoPlano(registro, ipCliente) {
   completarRegistro(registro, ipCliente).catch((err) => {
     console.error(`Auditoría ${registro.id}: no se pudo completar el registro:`, err.message);
   });
+}
+
+// -----------------------------------------------------------------------------
+// Historial
+// -----------------------------------------------------------------------------
+
+/** NUMERIC llega como texto desde pg: se convierte a número (o null). */
+function aNumero(valor) {
+  return valor === null ? null : Number(valor);
+}
+
+/** Convierte una fila de la auditoría en el objeto que se envía al cliente. */
+function aRegistroHistorial(fila) {
+  return {
+    id: fila.id,
+    fechaHora: fila.fecha_hora,
+    termino: fila.termino,
+    criterio: fila.criterio,
+    cantidadResultados: fila.cantidad_resultados,
+    ip: fila.ip,
+    ipOrigen: fila.ip_origen,
+    geolocalizacion: {
+      estado: fila.geo_estado,
+      pais: fila.geo_pais,
+      ciudad: fila.geo_ciudad,
+      organizacion: fila.geo_organizacion,
+      latitud: aNumero(fila.geo_latitud),
+      longitud: aNumero(fila.geo_longitud),
+    },
+    telegram: {
+      estado: fila.telegram_estado,
+      detalle: fila.telegram_detalle,
+    },
+  };
+}
+
+/** Página del historial de búsquedas, de la más reciente a la más antigua. */
+export async function listarHistorial(pagina) {
+  const desplazamiento = (pagina - 1) * TAMANIO_PAGINA;
+  const [filas, total] = await Promise.all([
+    repositorio.listar({ limite: TAMANIO_PAGINA, desplazamiento }),
+    repositorio.contar(),
+  ]);
+
+  return {
+    datos: filas.map(aRegistroHistorial),
+    paginacion: {
+      pagina,
+      tamanioPagina: TAMANIO_PAGINA,
+      total,
+      totalPaginas: Math.max(1, Math.ceil(total / TAMANIO_PAGINA)),
+    },
+    retencionDias: config.auditoria.retencionDias,
+  };
+}
+
+// -----------------------------------------------------------------------------
+// Política de retención
+// -----------------------------------------------------------------------------
+
+const INTERVALO_RETENCION_MS = 24 * 60 * 60 * 1000; // Una vez por día
+
+/** Elimina los registros más antiguos que el plazo de retención. */
+export async function aplicarRetencion() {
+  const { retencionDias } = config.auditoria;
+  const eliminados = await repositorio.eliminarAnterioresA(retencionDias);
+  if (eliminados > 0) {
+    console.log(`Retención: se eliminaron ${eliminados} registros de auditoría con más de ${retencionDias} días`);
+  }
+  return eliminados;
+}
+
+/**
+ * Aplica la retención al iniciar y luego una vez por día.
+ * Una falla (por ejemplo, la base no disponible) se registra y se reintenta
+ * en la siguiente ejecución: no detiene el servidor.
+ */
+export function programarRetencion() {
+  const ejecutar = () =>
+    aplicarRetencion().catch((err) => {
+      console.error('Retención: no se pudo aplicar:', err.message);
+    });
+
+  ejecutar();
+  const temporizador = setInterval(ejecutar, INTERVALO_RETENCION_MS);
+  // unref(): el temporizador no impide que el proceso termine (apagado ordenado)
+  temporizador.unref();
 }

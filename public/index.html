@@ -11,8 +11,14 @@
 </head>
 <body>
   <header class="cabecera">
-    <h1>Registro de personas</h1>
-    <p class="aviso-sintetico">Todos los datos de este sistema son sintéticos.</p>
+    <div>
+      <h1>Registro de personas</h1>
+      <p class="aviso-sintetico">Todos los datos de este sistema son sintéticos.</p>
+    </div>
+    <nav class="navegacion" aria-label="Secciones">
+      <a href="/" aria-current="page">Personas</a>
+      <a href="/historial.html">Historial de búsquedas</a>
+    </nav>
   </header>
 
   <main class="contenido">
@@ -140,7 +146,7 @@
       <button type="button" id="boton-confirmar-eliminar" class="boton boton-peligro">Eliminar</button>
     </div>
   </dialog>
-  
+
   <!-- Diálogo de verificación (captcha). El widget se carga solo cuando se necesita. -->
   <dialog id="dialogo-captcha" aria-labelledby="titulo-captcha">
     <h2 id="titulo-captcha">Verificación</h2>

@@ -12,6 +12,7 @@ import rutasBusquedas from './rutas/busquedas.rutas.js';
 import cookieParser from 'cookie-parser';
 import rutasConfiguracion from './rutas/configuracion.rutas.js';
 import { identificarIpCliente } from './middlewares/ipCliente.js';
+import rutasAuditoria from './rutas/auditoria.rutas.js';
 
 // import.meta.dirname es la carpeta de este archivo (src/). La carpeta pública está un nivel arriba.
 const RUTA_PUBLICA = path.join(import.meta.dirname, '..', 'public');
@@ -64,6 +65,8 @@ export function crearApp() {
   app.use('/api/busquedas', rutasBusquedas);
 
   app.use('/api/configuracion', rutasConfiguracion);
+
+  app.use('/api/auditoria', rutasAuditoria);
 
   // 4. Archivos del front end. Solo se sirve la carpeta public/:
   //    nada de src/, .env ni almacenamiento/ es accesible desde la web.

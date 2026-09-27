@@ -310,8 +310,28 @@ Las tareas posteriores a la respuesta se ejecutan sin `await` y con un `.catch` 
 error no capturado terminaría el proceso de Node. Si la tarea no llega a completarse, la columna
 correspondiente queda en `pendiente`.
 
-## Política de retención
-_(pendiente)_
+## Historial y política de retención
+
+**Vista:** `/historial.html` (API: `GET /api/auditoria?pagina=N`), paginada de a 20 registros,
+de la búsqueda más reciente a la más antigua. Muestra fecha y hora, término, criterio, cantidad
+de resultados, IP y su origen (túnel o conexión directa), ubicación y resultado del envío a
+Telegram.
+
+**Acceso:** la consigna excluye la autenticación y la vista es necesaria para la evaluación, por
+lo que el historial es accesible para quien acceda a la aplicación. Es un riesgo reconocido: el
+historial contiene términos de búsqueda e IPs. Se mitiga con respuestas sin caché
+(`Cache-Control: no-store`), paginación y una retención corta. En producción requeriría
+autenticación, control de acceso por roles y auditoría de las consultas al propio historial.
+
+**Retención: 30 días** (configurable con `RETENCION_AUDITORIA_DIAS`, entre 1 y 365).
+- Fundamento: la auditoría contiene datos personales (términos buscados e IPs). Se conservan solo
+  el tiempo necesario para revisar el uso reciente del sistema; conservar más aumenta el daño
+  posible ante una filtración sin un beneficio claro.
+- Aplicación: al iniciar el servidor y luego cada 24 horas se eliminan los registros más antiguos
+  que el plazo. El borrado usa el índice sobre `fecha_hora`.
+- Las sesiones de búsqueda vencidas se eliminan cada vez que se crea una nueva.
+- **Límite:** la retención no alcanza a los mensajes ya enviados a Telegram. Por eso esos mensajes
+  no contienen el término buscado ni la IP completa.
 
 ## Fuera de alcance y mejoras futuras
 _(pendiente)_

@@ -105,3 +105,8 @@ export function verificarCaptcha(token) {
     body: JSON.stringify({ token }),
   });
 }
+
+/** Página del historial de búsquedas (auditoría). */
+export function listarAuditoria(pagina) {
+  return solicitar(`/api/auditoria?pagina=${encodeURIComponent(pagina)}`);
+}
