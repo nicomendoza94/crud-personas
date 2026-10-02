@@ -14,13 +14,12 @@ import { NOMBRE_COOKIE, opcionesCookie } from '../middlewares/sesionBusqueda.js'
 import * as auditoriaServicio from '../servicios/auditoria.servicio.js';
 
 /**
- * POST /api/busquedas/verificacion  { "token": "<token de Turnstile>" }
+ * POST /api/busquedas/verificacion  { "lot_number, captcha_output, pass_token, gen_time" }
  * Verifica el captcha y, si es válido, abre una sesión de búsqueda (cookie).
  */
 export async function verificarCaptcha(req, res) {
-  // Solo se informa la IP a Cloudflare si es la del visitante real (vía túnel)
-  const { ip, origen } = res.locals.ipCliente;
-  await captchaServicio.verificarTokenCaptcha(req.body?.token, origen === 'cloudflare' ? ip : undefined);
+  // El navegador envía los cuatro valores que le entregó GeeTest al resolver el deslizador
+  await captchaServicio.verificarCaptcha(req.body);
 
   const sesion = await sesionBusqueda.iniciar();
   res.cookie(NOMBRE_COOKIE, sesion.token, opcionesCookie(sesion.vigenciaMinutos * 60_000));

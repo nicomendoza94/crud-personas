@@ -27,8 +27,9 @@ y geolocalización, y notificación a un grupo de Telegram.
    cloudflared tunnel --url http://127.0.0.1:3000
 ```
    Se usa `127.0.0.1` y no `localhost`, porque la aplicación escucha solo en IPv4 loopback.
-4. En Cloudflare → Turnstile, agregar el hostname del túnel (`xxxx.trycloudflare.com`) al widget y
-   configurar sus claves en `.env`.
+4. Configurar en `.env` las claves del captcha (`GEETEST_CAPTCHA_ID` y `GEETEST_CAPTCHA_KEY`),
+   obtenidas en el panel de GeeTest. A diferencia de Turnstile, GeeTest no exige registrar el
+   hostname del túnel, así que reiniciar el túnel no requiere configuración adicional.
 
 El túnel debe permanecer activo durante toda la ventana de evaluación: si se reinicia, la URL
 cambia. No requiere abrir puertos: `cloudflared` inicia la conexión saliente hacia Cloudflare.
@@ -260,41 +261,25 @@ por tests (`tests/ip.test.js`), incluidos los casos de encabezados falsificados.
 `X-Forwarded-For`, pero se prefirió una regla explícita y específica para Cloudflare, en una
 función pura y testeable.
 
-## Captcha
+## Captcha: verificación anti-automatización
 
-**Mecanismo:** Cloudflare Turnstile (gratuito, sin rastreo publicitario, habitualmente se
-resuelve con un clic).
+**Mecanismo:** captcha deslizante de **GeeTest CAPTCHA v4** (el usuario arrastra una pieza hasta completar la imagen). Reemplazó a Cloudflare Turnstile, a pedido de la evaluación.
 
-**Validación:**
-1. El navegador resuelve el widget y obtiene un token de Turnstile.
-2. Lo envía a `POST /api/busquedas/verificacion`.
-3. El servidor lo verifica con la API de Cloudflare (`siteverify`) usando la clave secreta,
-   con un tiempo máximo de espera de 5 segundos.
-4. Si es válido, abre una **sesión de búsqueda**: genera un token aleatorio de 32 bytes, lo envía
-   en una cookie `HttpOnly`, `SameSite=Strict`, restringida a `/api/busquedas` (y `Secure` en
-   producción), y guarda en la base solo su hash SHA-256.
-5. `POST /api/busquedas` exige esa sesión: sin ella responde 403 con el código `CAPTCHA_REQUERIDO`.
+**Cómo se valida:**
+1. Cuando el servidor exige verificación, el navegador abre el deslizador de GeeTest (modo "bind", identificado con el `captcha_id` público).
+2. Al resolverlo, GeeTest entrega al navegador cuatro valores: `lot_number`, `captcha_output`, `pass_token` y `gen_time`.
+3. El navegador los envía a `POST /api/busquedas/verificacion`. El servidor **no los da por buenos**: los envía a la validación secundaria de GeeTest (`gcaptcha4.geetest.com/validate`) junto con una firma **HMAC-SHA256** del `lot_number`, calculada con la Key privada. La Key nunca sale del servidor ni viaja por la red.
+4. Si GeeTest los aprueba, se abre una **sesión de búsqueda** (ver más abajo).
 
-**Por qué no puede eludirse:** un token de Turnstile solo se obtiene resolviendo el widget en un
-navegador, y solo es válido si Cloudflare lo confirma: un token inventado es rechazado. Los tokens
-son de un solo uso y vencen a los 5 minutos. Una llamada directa a `POST /api/busquedas` (por
-ejemplo con `curl`) sin sesión, o con una cookie inventada, recibe 403.
+**Por qué no puede eludirse:** llamar a la búsqueda sin sesión responde **403 `CAPTCHA_REQUERIDO`**. Para obtener una sesión hacen falta valores aprobados por GeeTest, que solo se obtienen resolviendo el deslizador en un navegador; valores inventados o reutilizados son rechazados (**403**).
 
-**Política (equilibrio entre seguridad y usabilidad):** un captcha aprobado habilita
-**20 búsquedas durante 10 minutos**, lo que ocurra primero (configurable con
-`CAPTCHA_MAXIMO_BUSQUEDAS` y `CAPTCHA_VIGENCIA_MINUTOS`). Después se solicita nuevamente. La
-búsqueda se ejecuta solo al presionar "Buscar", nunca mientras se escribe. Cada intento de
-búsqueda descuenta una unidad, aunque el término sea inválido.
+**Si GeeTest no responde:** se **falla cerrado** (503). La documentación de GeeTest sugiere dejar pasar al usuario ante una falla de su servicio; no se hace, porque el captcha es un control de seguridad.
 
-**Detalles de implementación:**
-- La búsqueda se descuenta con un único `UPDATE` atómico: aunque lleguen muchas peticiones
-  simultáneas con la misma cookie, nunca se superan las búsquedas habilitadas.
-- Se guarda el hash y no el token: una copia de la base no permite usar sesiones.
-- Si no se puede consultar a Cloudflare, la búsqueda **no** se habilita (se falla cerrado,
-  respuesta 503): el captcha es un control de seguridad y no debe desactivarse ante una falla.
-- Las claves se leen de variables de entorno. La clave de sitio (pública por diseño) se entrega
-  al front mediante `GET /api/configuracion`; la secreta nunca sale del servidor.
-- La CSP solo permite scripts e iframes del propio servidor y de `challenges.cloudflare.com`.
+**Política (sin cambios):** un captcha aprobado habilita una sesión de **20 búsquedas o 10 minutos**, configurable en `.env`. La sesión se guarda en la base solo como hash SHA-256, con la cookie `HttpOnly` y el descuento atómico.
+
+**Claves:** `GEETEST_CAPTCHA_ID` (público, se entrega al front por `/api/configuracion`) y `GEETEST_CAPTCHA_KEY` (privada), en `.env`.
+
+**Por qué GeeTest y no un deslizador propio:** un deslizador propio verificaría la posición de la pieza en el servidor, pero un programa podría analizar la imagen para encontrar el hueco. GeeTest, además de la posición, analiza el comportamiento del usuario. El costo: es un tercero que recibe datos de los visitantes, y su plan gratuito es una prueba.
 
 ## Límite de solicitudes por IP
 

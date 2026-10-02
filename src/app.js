@@ -23,13 +23,15 @@ export function crearApp() {
 
   // 1. Encabezados de seguridad (CSP, nosniff, etc.). Va primero para cubrir todas las respuestas.
   //    La CSP de helmet solo permite recursos del propio servidor; se agrega
-  //    exclusivamente el dominio de Cloudflare Turnstile (su script y el iframe del widget).
+  //    exclusivamente el dominio de GeeTest (su script y el iframe del widget).
   app.use(
     helmet({
       contentSecurityPolicy: {
         directives: {
-          scriptSrc: ["'self'", 'https://challenges.cloudflare.com'],
-          frameSrc: ["'self'", 'https://challenges.cloudflare.com'],
+          // GeeTest: su script, las imágenes del deslizador y sus consultas
+          scriptSrc: ["'self'", 'https://static.geetest.com', 'https://gcaptcha4.geetest.com'],
+          imgSrc: ["'self'", 'data:', 'https://static.geetest.com'],
+          connectSrc: ["'self'", 'https://gcaptcha4.geetest.com'],
         },
       },
     }),
