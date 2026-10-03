@@ -86,12 +86,32 @@ function generarFondoSvg() {
   </svg>`;
 }
 
-/** Un cuadrado del tamaño de la pieza, con bordes redondeados, en SVG. */
-function cuadradoSvg(atributos) {
-  const lado = LADO_PIEZA;
+/**
+ * Figuras posibles de la pieza, en SVG. Cada una entra en un cuadro de
+ * LADO_PIEZA × LADO_PIEZA (50 × 50) y recibe sus atributos de dibujo.
+ * La posición se mide por ese cuadro: la figura no interviene en la verificación.
+ * Variar la forma dificulta encontrar el hueco buscando siempre la misma silueta.
+ */
+const FIGURAS = [
+  // Cuadrado con bordes redondeados
+  (a) => `<rect x="1" y="1" width="48" height="48" rx="9" ${a}/>`,
+  // Círculo
+  (a) => `<circle cx="25" cy="25" r="23" ${a}/>`,
+  // Pentágono
+  (a) => `<polygon points="25,2 48,19 39,47 11,47 2,19" ${a}/>`,
+  // Hexágono
+  (a) => `<polygon points="13,3 37,3 48,25 37,47 13,47 2,25" ${a}/>`,
+  // Estrella
+  (a) => `<polygon points="25,2 31,18 48,19 35,30 39,47 25,37 11,47 15,30 2,19 19,18" ${a}/>`,
+  // Pieza de rompecabezas (con salientes arriba y a la derecha)
+  (a) => `<path d="M6 14 H20 A6 6 0 1 1 30 14 H40 V22 A5.5 5.5 0 1 1 40 32 V46 H6 Z" ${a}/>`,
+];
+
+/** Dibuja la figura indicada en un SVG del tamaño de la pieza. */
+function figuraSvg(figura, atributos) {
   return Buffer.from(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${lado}" height="${lado}">
-       <rect x="1" y="1" width="${lado - 2}" height="${lado - 2}" rx="9" ${atributos}/>
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${LADO_PIEZA}" height="${LADO_PIEZA}">
+       ${figura(atributos)}
      </svg>`,
   );
 }
@@ -100,7 +120,7 @@ function cuadradoSvg(atributos) {
  * Genera las dos imágenes del desafío para un hueco en (x, y).
  * @returns {Promise<{fondo: Buffer, pieza: Buffer}>} En formato WebP
  */
-async function generarImagenes(x, y) {
+async function generarImagenes(x, y, figura) {
   const fondo = await sharp(Buffer.from(generarFondoSvg())).png().toBuffer();
 
   // La pieza: el cuadrado del fondo en (x, y), con bordes redondeados y un borde claro.
@@ -109,8 +129,8 @@ async function generarImagenes(x, y) {
     .extract({ left: x, top: y, width: LADO_PIEZA, height: LADO_PIEZA })
     .ensureAlpha()
     .composite([
-      { input: cuadradoSvg('fill="#fff"'), blend: 'dest-in' },
-      { input: cuadradoSvg('fill="none" stroke="#fff" stroke-width="2"') },
+      { input: figuraSvg(figura, 'fill="#fff"'), blend: 'dest-in' },
+      { input: figuraSvg(figura, 'fill="none" stroke="#fff" stroke-width="2"') },
     ])
     .webp({ lossless: true })
     .toBuffer();
@@ -119,7 +139,7 @@ async function generarImagenes(x, y) {
   const fondoConHueco = await sharp(fondo)
     .composite([
       {
-        input: cuadradoSvg('fill="#000" fill-opacity="0.45" stroke="#fff" stroke-opacity="0.8" stroke-width="2"'),
+        input: figuraSvg(figura, 'fill="#000" fill-opacity="0.45" stroke="#fff" stroke-opacity="0.8" stroke-width="2"'),
         left: x,
         top: y,
       },
@@ -145,7 +165,9 @@ export async function crearDesafio() {
 
   const x = aleatorio(X_MINIMA, ANCHO - LADO_PIEZA - MARGEN);
   const y = aleatorio(MARGEN, ALTO - LADO_PIEZA - MARGEN);
-  const { fondo, pieza } = await generarImagenes(x, y);
+  // Una figura al azar para la pieza y el hueco
+  const figura = FIGURAS[crypto.randomInt(FIGURAS.length)];
+  const { fondo, pieza } = await generarImagenes(x, y, figura);
 
   const id = crypto.randomUUID();
   await repositorio.crear(id, x, VIGENCIA_SEGUNDOS);
