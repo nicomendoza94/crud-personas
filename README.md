@@ -27,9 +27,6 @@ y geolocalización, y notificación a un grupo de Telegram.
    cloudflared tunnel --url http://127.0.0.1:3000
 ```
    Se usa `127.0.0.1` y no `localhost`, porque la aplicación escucha solo en IPv4 loopback.
-4. Configurar en `.env` las claves del captcha (`GEETEST_CAPTCHA_ID` y `GEETEST_CAPTCHA_KEY`),
-   obtenidas en el panel de GeeTest. A diferencia de Turnstile, GeeTest no exige registrar el
-   hostname del túnel, así que reiniciar el túnel no requiere configuración adicional.
 
 El túnel debe permanecer activo durante toda la ventana de evaluación: si se reinicia, la URL
 cambia. No requiere abrir puertos: `cloudflared` inicia la conexión saliente hacia Cloudflare.
@@ -118,6 +115,7 @@ PostgreSQL (migraciones SQL versionadas en src/db/migraciones)
 | Seguridad HTTP | `helmet`, `express-rate-limit` | Encabezados de seguridad (CSP) y límite de solicitudes por IP |
 | Front end | HTML, CSS y JS sin frameworks | Sin paso de compilación; los datos se insertan siempre con `textContent` |
 | Tests | `node:test` | Incluido en Node, sin dependencias adicionales |
+| Captcha | Deslizador propio (rompecabezas generado con `sharp`) | Sin dependencia de terceros ni envío de datos de los visitantes; la respuesta correcta queda solo en el servidor (ver sección Captcha) |
 
 Configuración centralizada en `src/config/entorno.js`: todas las variables se validan al iniciar
 y la aplicación no arranca si falta alguna.
@@ -261,25 +259,46 @@ por tests (`tests/ip.test.js`), incluidos los casos de encabezados falsificados.
 `X-Forwarded-For`, pero se prefirió una regla explícita y específica para Cloudflare, en una
 función pura y testeable.
 
-## Captcha: verificación anti-automatización
+## Captcha
 
-**Mecanismo:** captcha deslizante de **GeeTest CAPTCHA v4** (el usuario arrastra una pieza hasta completar la imagen). Reemplazó a Cloudflare Turnstile, a pedido de la evaluación.
+**Mecanismo:** captcha deslizante **propio**: el usuario arrastra una pieza hasta completar un rompecabezas generado por el servidor. Reemplazó a Cloudflare Turnstile y luego a GeeTest, a pedido de la evaluación.
 
-**Cómo se valida:**
-1. Cuando el servidor exige verificación, el navegador abre el deslizador de GeeTest (modo "bind", identificado con el `captcha_id` público).
-2. Al resolverlo, GeeTest entrega al navegador cuatro valores: `lot_number`, `captcha_output`, `pass_token` y `gen_time`.
-3. El navegador los envía a `POST /api/busquedas/verificacion`. El servidor **no los da por buenos**: los envía a la validación secundaria de GeeTest (`gcaptcha4.geetest.com/validate`) junto con una firma **HMAC-SHA256** del `lot_number`, calculada con la Key privada. La Key nunca sale del servidor ni viaja por la red.
-4. Si GeeTest los aprueba, se abre una **sesión de búsqueda** (ver más abajo).
+**Cómo funciona:**
 
-**Por qué no puede eludirse:** llamar a la búsqueda sin sesión responde **403 `CAPTCHA_REQUERIDO`**. Para obtener una sesión hacen falta valores aprobados por GeeTest, que solo se obtienen resolviendo el deslizador en un navegador; valores inventados o reutilizados son rechazados (**403**).
+1. Cuando el servidor exige verificación, el navegador pide un desafío a `POST /api/busquedas/desafio`.
+2. El servidor elige al azar dónde va el hueco, genera con `sharp` un fondo aleatorio (degradé y formas de colores), recorta la pieza y oscurece el hueco. **Guarda en la base solo la posición horizontal correcta** (tabla `desafios_captcha`) y devuelve las dos imágenes, la altura de la pieza y un identificador. **La posición correcta nunca se envía al navegador.**
+3. El usuario arrastra el botón del riel; la pieza se mueve con él. Al soltar, el navegador envía la posición a `POST /api/busquedas/verificacion`.
+4. El servidor obtiene y **elimina** el desafío en una única operación atómica (`DELETE ... RETURNING`) y verifica que siga vigente, que haya pasado un tiempo mínimo y que la posición esté dentro del margen. Si es correcta, abre una **sesión de búsqueda**: un token aleatorio de 32 bytes en una cookie `HttpOnly`, `SameSite=Strict`, restringida a `/api/busquedas` (y `Secure` en producción), con solo su hash SHA-256 guardado en la base.
+5. `POST /api/busquedas` exige esa sesión: sin ella responde 403 con el código `CAPTCHA_REQUERIDO`.
 
-**Si GeeTest no responde:** se **falla cerrado** (503). La documentación de GeeTest sugiere dejar pasar al usuario ante una falla de su servicio; no se hace, porque el captcha es un control de seguridad.
+**Reglas de la verificación:**
 
-**Política (sin cambios):** un captcha aprobado habilita una sesión de **20 búsquedas o 10 minutos**, configurable en `.env`. La sesión se guarda en la base solo como hash SHA-256, con la cookie `HttpOnly` y el descuento atómico.
+| Regla | Valor | Contra qué protege |
+|---|---|---|
+| Un solo intento por desafío | Se elimina al verificarlo, acierte o no | Probar posición por posición con el mismo desafío |
+| Vencimiento | 2 minutos | Resolver desafíos guardados |
+| Tiempo mínimo de resolución | 1 segundo | Programas que responden al instante |
+| Margen de la posición | ±6 píxeles | Que un humano no tenga que ser exacto |
+| Fondo aleatorio en cada desafío | Generado por el servidor | Aprenderse imágenes fijas |
 
-**Claves:** `GEETEST_CAPTCHA_ID` (público, se entrega al front por `/api/configuracion`) y `GEETEST_CAPTCHA_KEY` (privada), en `.env`.
+**Por qué no puede eludirse:** la respuesta correcta la conoce solo el servidor; el navegador solo envía un intento. Una llamada directa a `POST /api/busquedas` (por ejemplo con `curl`) sin sesión, o con una cookie inventada, recibe 403. Un desafío inexistente, vencido o ya utilizado es rechazado, y una posición incorrecta también.
 
-**Por qué GeeTest y no un deslizador propio:** un deslizador propio verificaría la posición de la pieza en el servidor, pero un programa podría analizar la imagen para encontrar el hueco. GeeTest, además de la posición, analiza el comportamiento del usuario. El costo: es un tercero que recibe datos de los visitantes, y su plan gratuito es una prueba.
+**Por qué propio, y qué se evaluó:**
+- **GeeTest** (la implementación anterior) es más robusto: analiza el comportamiento y renueva sus imágenes, pero es un tercero que recibe datos de los visitantes. Su guía de despliegue, además, exige un modo que deja pasar al usuario si su servicio falla, lo que se había descartado para fallar cerrado.
+- **Librerías de código abierto:** muchas verifican el resultado en el navegador, por lo que se eludirían enviando "aprobado" con `curl`. Se descartaron.
+- **Propio:** no depende de ningún tercero, no envía datos de los visitantes a nadie y la CSP no autoriza ningún dominio externo.
+
+**Limitaciones conocidas:** un programa podría analizar la imagen para encontrar el hueco. Además, adivinando una posición al azar acertaría cerca del 7% de las veces (13 posiciones aceptadas sobre unas 190 posibles). Lo mitigan el intento único, el tiempo mínimo, el límite de 20 solicitudes por minuto por IP y la sesión limitada a 20 búsquedas. Mejoras posibles: limitar los intentos fallidos por IP, huecos señuelo y el análisis de la trayectoria del arrastre.
+
+**Política (equilibrio entre seguridad y usabilidad):** un captcha aprobado habilita **20 búsquedas durante 10 minutos**, lo que ocurra primero (configurable con `CAPTCHA_MAXIMO_BUSQUEDAS` y `CAPTCHA_VIGENCIA_MINUTOS`). La búsqueda se ejecuta solo al presionar "Buscar", nunca mientras se escribe. Cada intento de búsqueda descuenta una unidad, aunque el término sea inválido.
+
+**Detalles de implementación:**
+
+- La búsqueda se descuenta con un único `UPDATE` atómico: aunque lleguen muchas peticiones simultáneas con la misma cookie, nunca se superan las búsquedas habilitadas.
+- Se guarda el hash y no el token: una copia de la base no permite usar sesiones.
+- El azar usa el generador criptográfico de Node (`crypto.randomInt`), no `Math.random()`.
+- Las imágenes viajan como `data:` en la respuesta JSON: la CSP por defecto de helmet alcanza, sin dominios externos.
+- El arrastre usa los eventos del puntero, por lo que funciona con mouse y en pantallas táctiles.
 
 ## Límite de solicitudes por IP
 
@@ -427,3 +446,5 @@ Cada entrada registra en qué se usó, qué errores cometió la herramienta y qu
 | 2026-09-26 | Instrucciones de edición | Pasos para modificar archivos existentes | Algunas indicaciones ("actualizá el import") eran ambiguas y derivaron en declaraciones duplicadas (`esquemaId`, `mostrarResultadosBusqueda`) que rompían el módulo. Se detectaron con los errores de Node y de la consola del navegador y se corrigieron |
 | 2026-09-27 | Conectividad con Telegram | Diagnóstico de timeouts | La solución propuesta (priorizar IPv4) resolvió el problema inicial, pero luego la ruta IPv4 también falló. Se diagnosticó como inestabilidad de la red doméstica y se decidió usar datos móviles durante la evaluación |
 | 2026-09-27 | Pruebas en el túnel | Obtención de la cookie de sesión | Indicó buscar la cookie en la vista de cookies de Chrome, donde no aparece por su `Path=/api/busquedas`. Se obtuvo desde la pestaña Network |
+| 2026-10-01 | Captcha (GeeTest) | Reemplazo de Turnstile por un captcha deslizante | Propuso primero un deslizador propio por el plazo; tras comparar opciones se eligió GeeTest. Advirtió que muchas librerías verifican el resultado en el navegador (eludibles con `curl`) y que la guía de GeeTest exige dejar pasar al usuario si su servicio falla; se mantuvo el criterio de fallar cerrado |
+| 2026-10-03 | Captcha propio | Diseño e implementación del rompecabezas deslizante | Una instrucción de reemplazo dejó `verificarCaptcha` declarada dos veces en `api.js`, lo que detuvo todo el front; se detectó con la consola del navegador y se eliminó la versión anterior. Al probar se calculó que adivinando la posición se acierta cerca del 7% de las veces; quedó documentado como limitación |
