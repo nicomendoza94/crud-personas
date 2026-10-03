@@ -16,8 +16,9 @@ const UN_MINUTO_MS = 60 * 1000;
  * Crea un limitador con las opciones comunes.
  * @param {number} maximo   Solicitudes permitidas por IP en la ventana de tiempo
  * @param {string} mensaje  Mensaje para el usuario al superar el límite
+ * @param {object} [opciones] Opciones adicionales de express-rate-limit
  */
-function crearLimitador(maximo, mensaje) {
+function crearLimitador(maximo, mensaje, opciones = {}) {
   return rateLimit({
     windowMs: UN_MINUTO_MS,
     limit: maximo,
@@ -40,6 +41,7 @@ function crearLimitador(maximo, mensaje) {
     handler: (req, res, next) => {
       next(new ErrorAplicacion(429, mensaje, undefined, 'LIMITE_SOLICITUDES'));
     },
+    ...opciones,
   });
 }
 
@@ -63,4 +65,16 @@ export const limiteBusquedas = crearLimitador(
 export const limiteEscrituras = crearLimitador(
   20,
   'Se alcanzó el límite de modificaciones por minuto. Espere un momento e intente nuevamente.',
+);
+
+/**
+ * Intentos FALLIDOS del captcha deslizante: 5 cada 15 minutos por IP.
+ * Las verificaciones exitosas no cuentan (skipSuccessfulRequests): un usuario
+ * normal nunca alcanza el límite, pero un programa que adivina la posición al
+ * azar (cada intento acierta cerca del 7% de las veces) queda frenado.
+ */
+export const limiteIntentosCaptcha = crearLimitador(
+  5,
+  'Demasiados intentos fallidos de verificación. Espere unos minutos e intente nuevamente.',
+  { windowMs: 15 * UN_MINUTO_MS, skipSuccessfulRequests: true },
 );

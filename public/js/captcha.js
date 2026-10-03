@@ -66,10 +66,17 @@ async function enviarRespuesta() {
     await api.verificarCaptcha({ desafioId: desafio.id, posicion: Math.round(posicion) });
     terminar(true);
   } catch (err) {
-    // Un solo intento por desafío: se muestra el motivo y se pide uno nuevo
     mostrarError(err.message);
+    // Si se superó un límite de solicitudes, no se ofrece otro desafío: hay que esperar.
+    // El botón queda deshabilitado; el usuario puede cancelar y volver a intentar más tarde.
+    if (err.codigo === 'LIMITE_SOLICITUDES') {
+      desafio = null;
+      return;
+    }
+    // Un solo intento por desafío: se pide uno nuevo
     await cargarDesafio();
   } finally {
+    // Siempre se ejecuta, haya salido bien, mal, o con el "return" de arriba
     enviando = false;
   }
 }
