@@ -146,5 +146,30 @@
       <button type="button" id="boton-confirmar-eliminar" class="boton boton-peligro">Eliminar</button>
     </div>
   </dialog>
+
+  <!-- Diálogo del captcha deslizante: un rompecabezas generado por el servidor -->
+  <dialog id="dialogo-captcha" aria-labelledby="titulo-captcha">
+    <h2 id="titulo-captcha">Verificación</h2>
+    <p>Arrastre el botón para mover la pieza hasta completar la imagen.
+       Una verificación habilita varias búsquedas durante unos minutos.</p>
+
+    <div class="lienzo-captcha">
+      <img id="fondo-captcha" class="fondo-captcha" alt="Imagen con un hueco">
+      <img id="pieza-captcha" class="pieza-captcha" alt="">
+    </div>
+
+    <!-- touch-action: none (en el CSS) evita que la página se desplace al arrastrar con el dedo -->
+    <div class="riel-captcha">
+      <button type="button" id="tirador-captcha" class="tirador-captcha"
+              aria-label="Arrastrar la pieza">&rarr;</button>
+    </div>
+
+    <p id="error-captcha" class="mensaje error" role="alert" hidden></p>
+
+    <div class="acciones-dialogo">
+      <button type="button" id="boton-nuevo-desafio" class="boton">Otra imagen</button>
+      <button type="button" class="boton" data-cerrar>Cancelar</button>
+    </div>
+  </dialog>
 </body>
 </html>

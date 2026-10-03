@@ -1,6 +1,7 @@
 /**
  * Rutas de búsqueda. Se montan bajo /api/busquedas en app.js.
  *
+ *  POST /api/busquedas/desafio       Crea un desafío del captcha deslizante (imágenes, sin la respuesta)
  *  POST /api/busquedas/verificacion  Verifica el captcha y abre una sesión de búsqueda
  *  POST /api/busquedas               Busca (requiere una sesión vigente)
  */
@@ -14,6 +15,7 @@ const router = Router();
 // Límite de frecuencia para todas las rutas de búsqueda (verificación incluida)
 router.use(limiteBusquedas);
 
+router.post('/desafio', controlador.crearDesafio);
 router.post('/verificacion', controlador.verificarCaptcha);
 router.post('/', exigirSesionBusqueda, controlador.buscar);
 

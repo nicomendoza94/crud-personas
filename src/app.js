@@ -10,7 +10,6 @@ import { rutaNoEncontrada, manejadorErrores } from './middlewares/errores.js';
 import rutasPersonas from './rutas/personas.rutas.js';
 import rutasBusquedas from './rutas/busquedas.rutas.js';
 import cookieParser from 'cookie-parser';
-import rutasConfiguracion from './rutas/configuracion.rutas.js';
 import { identificarIpCliente } from './middlewares/ipCliente.js';
 import rutasAuditoria from './rutas/auditoria.rutas.js';
 import { limiteGeneral } from './middlewares/limitesSolicitudes.js';
@@ -22,20 +21,9 @@ export function crearApp() {
   const app = express();
 
   // 1. Encabezados de seguridad (CSP, nosniff, etc.). Va primero para cubrir todas las respuestas.
-  //    La CSP de helmet solo permite recursos del propio servidor; se agrega
-  //    exclusivamente el dominio de GeeTest (su script y el iframe del widget).
-  app.use(
-    helmet({
-      contentSecurityPolicy: {
-        directives: {
-          // GeeTest: su script, las imágenes del deslizador y sus consultas
-          scriptSrc: ["'self'", 'https://static.geetest.com', 'https://gcaptcha4.geetest.com'],
-          imgSrc: ["'self'", 'data:', 'https://static.geetest.com'],
-          connectSrc: ["'self'", 'https://gcaptcha4.geetest.com'],
-        },
-      },
-    }),
-  );
+  //    La CSP por defecto de helmet solo permite recursos del propio servidor: el captcha
+  //    es propio y sus imágenes llegan como data: (permitido por defecto en img-src).
+  app.use(helmet());
 
   // Identifica la IP real del visitante (detrás de Cloudflare Tunnel).
   // Va antes que todo lo demás para que cualquier parte de la app pueda usarla.
@@ -69,8 +57,6 @@ export function crearApp() {
   app.use('/api/personas', rutasPersonas);
 
   app.use('/api/busquedas', rutasBusquedas);
-
-  app.use('/api/configuracion', rutasConfiguracion);
 
   app.use('/api/auditoria', rutasAuditoria);
 

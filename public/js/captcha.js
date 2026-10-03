@@ -1,103 +1,134 @@
 /**
- * Verificación con el captcha deslizante de GeeTest (CAPTCHA v4).
+ * Captcha deslizante propio: el usuario arrastra el botón del riel para mover la
+ * pieza hasta el hueco del rompecabezas.
  *
- * El script de GeeTest se descarga solo la primera vez que se necesita. Se usa
- * el modo "bind": no hay un botón fijo en la página; cuando el servidor exige
- * verificación, solicitarCaptcha() abre la ventana del deslizador. Al
- * resolverlo, GeeTest entrega cuatro valores que se envían al servidor, que los
- * valida con GeeTest y abre una sesión de búsqueda.
+ * Las imágenes las genera el servidor, que es el ÚNICO que conoce la posición
+ * correcta. Este módulo solo dibuja el desafío y envía la posición donde el
+ * usuario soltó la pieza: no decide si es correcta.
+ *
+ * Cada desafío admite un solo intento: si la respuesta es rechazada, se pide uno nuevo.
  */
 import * as api from './api.js';
 
-const URL_SCRIPT_GEETEST = 'https://static.geetest.com/v4/gt4.js';
+const el = {
+  dialogo: document.getElementById('dialogo-captcha'),
+  fondo: document.getElementById('fondo-captcha'),
+  pieza: document.getElementById('pieza-captcha'),
+  tirador: document.getElementById('tirador-captcha'),
+  error: document.getElementById('error-captcha'),
+  botonNuevo: document.getElementById('boton-nuevo-desafio'),
+};
 
-// Se guardan para crear el captcha una sola vez
-let promesaCaptcha = null;
+let pendiente = null; // La solicitud en curso: { resolver }
+let desafio = null; // El desafío que se está mostrando (id y medidas)
+let arrastre = null; // Mientras se arrastra: { inicioX, posicionInicial }
+let posicion = 0; // Posición horizontal actual de la pieza, en píxeles
+let enviando = false;
 
-// La solicitud en curso: el captcha es uno solo, y atiende un pedido por vez
-let pendiente = null;
-
-/** Descarga el script de GeeTest (define la función global initGeetest4). */
-function cargarScript() {
-  return new Promise((resolver, rechazar) => {
-    const script = document.createElement('script');
-    script.src = URL_SCRIPT_GEETEST;
-    script.async = true;
-    script.onload = () => resolver(window.initGeetest4);
-    script.onerror = () =>
-      rechazar(new Error('No se pudo cargar la verificación. Revise su conexión e intente nuevamente.'));
-    document.head.append(script);
-  });
+function mostrarError(texto) {
+  el.error.textContent = texto;
+  el.error.hidden = false;
 }
 
-/** Termina la solicitud en curso, una sola vez. */
-function terminar(verificado, error) {
+function ocultarError() {
+  el.error.hidden = true;
+}
+
+/** Mueve la pieza y el botón juntos, sin salirse de la imagen. */
+function moverA(x) {
+  const maximo = desafio ? desafio.ancho - desafio.ladoPieza : 0;
+  posicion = Math.min(Math.max(x, 0), maximo);
+  el.pieza.style.left = `${posicion}px`;
+  el.tirador.style.left = `${posicion}px`;
+}
+
+/** Pide un desafío nuevo al servidor y lo dibuja. */
+async function cargarDesafio() {
+  desafio = null;
+  el.tirador.disabled = true;
+  moverA(0);
+  try {
+    desafio = await api.pedirDesafio();
+    el.fondo.src = desafio.fondo;
+    el.pieza.src = desafio.pieza;
+    el.pieza.style.top = `${desafio.piezaY}px`;
+    el.tirador.disabled = false;
+  } catch (err) {
+    mostrarError(err.message);
+  }
+}
+
+/** Envía la posición al servidor, que decide si la pieza quedó en su lugar. */
+async function enviarRespuesta() {
+  enviando = true;
+  el.tirador.disabled = true;
+  try {
+    await api.verificarCaptcha({ desafioId: desafio.id, posicion: Math.round(posicion) });
+    terminar(true);
+  } catch (err) {
+    // Un solo intento por desafío: se muestra el motivo y se pide uno nuevo
+    mostrarError(err.message);
+    await cargarDesafio();
+  } finally {
+    enviando = false;
+  }
+}
+
+/** Cierra el diálogo y devuelve el resultado, una sola vez. */
+function terminar(verificado) {
   if (!pendiente) return;
-  const { resolver, rechazar } = pendiente;
+  const { resolver } = pendiente;
   pendiente = null;
-  if (error) rechazar(error);
-  else resolver(verificado);
+  if (el.dialogo.open) el.dialogo.close();
+  resolver(verificado);
 }
 
-/**
- * Crea el captcha una única vez: descarga el script, pide el ID público al
- * servidor y registra qué hacer cuando el usuario lo resuelve o lo cierra.
- */
-function obtenerCaptcha() {
-  promesaCaptcha ??= (async () => {
-    const [initGeetest4, configuracion] = await Promise.all([cargarScript(), api.obtenerConfiguracion()]);
+// --- Arrastre con los eventos del puntero (mouse, dedo o lápiz) ---
 
-    return new Promise((resolver, rechazar) => {
-      initGeetest4(
-        {
-          captchaId: configuracion.captcha.captchaId,
-          product: 'bind', // sin botón fijo: se abre al llamar a showCaptcha()
-          language: 'spa',
-        },
-        (captcha) => {
-          captcha
-            .onReady(() => resolver(captcha))
-            // El usuario resolvió el deslizador: el servidor valida el resultado con GeeTest
-            .onSuccess(async () => {
-              const resultado = captcha.getValidate();
-              try {
-                await api.verificarCaptcha(resultado);
-                terminar(true);
-              } catch (err) {
-                // Rechazado (vencido, reutilizado) o servidor no disponible
-                terminar(false, err);
-              } finally {
-                // Deja el captcha listo para la próxima vez que se necesite
-                captcha.reset();
-              }
-            })
-            // El usuario cerró la ventana sin resolver: equivale a cancelar
-            .onClose(() => terminar(false))
-            .onError((error) => {
-              console.error('Error de GeeTest:', error);
-              terminar(false, new Error('Ocurrió un problema con la verificación. Intente nuevamente.'));
-            });
-        },
-      );
-    });
-  })().catch((err) => {
-    promesaCaptcha = null; // Permite reintentar más tarde
-    throw err;
-  });
+el.tirador.addEventListener('pointerdown', (evento) => {
+  if (!desafio || enviando) return;
+  arrastre = { inicioX: evento.clientX, posicionInicial: posicion };
+  // Sigue recibiendo los movimientos aunque el puntero salga del botón
+  el.tirador.setPointerCapture(evento.pointerId);
+});
 
-  return promesaCaptcha;
-}
+el.tirador.addEventListener('pointermove', (evento) => {
+  if (!arrastre) return;
+  moverA(arrastre.posicionInicial + (evento.clientX - arrastre.inicioX));
+});
+
+el.tirador.addEventListener('pointerup', () => {
+  if (!arrastre) return;
+  arrastre = null;
+  ocultarError();
+  enviarRespuesta();
+});
+
+// Si el sistema interrumpe el arrastre, la pieza vuelve al inicio
+el.tirador.addEventListener('pointercancel', () => {
+  arrastre = null;
+  moverA(0);
+});
+
+el.botonNuevo.addEventListener('click', () => {
+  ocultarError();
+  cargarDesafio();
+});
+
+// Cancelar (botón o tecla Esc) equivale a no verificar
+el.dialogo.addEventListener('close', () => terminar(false));
 
 /**
- * Muestra el captcha deslizante y espera a que el usuario lo resuelva.
+ * Muestra el captcha y espera a que el usuario lo resuelva.
  * @returns {Promise<boolean>} true si se verificó y hay sesión de búsqueda;
- *                             false si el usuario cerró la ventana
- * @throws {Error} si no se pudo cargar o el servidor rechazó la verificación
+ *                             false si el usuario canceló
  */
-export async function solicitarCaptcha() {
-  const captcha = await obtenerCaptcha();
-  return new Promise((resolver, rechazar) => {
-    pendiente = { resolver, rechazar };
-    captcha.showCaptcha();
+export function solicitarCaptcha() {
+  ocultarError();
+  el.dialogo.showModal();
+  const promesa = new Promise((resolver) => {
+    pendiente = { resolver };
   });
+  cargarDesafio();
+  return promesa;
 }

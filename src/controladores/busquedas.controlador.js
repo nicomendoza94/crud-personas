@@ -13,8 +13,19 @@ import { esquemaBusqueda } from '../validaciones/personas.esquemas.js';
 import { NOMBRE_COOKIE, opcionesCookie } from '../middlewares/sesionBusqueda.js';
 import * as auditoriaServicio from '../servicios/auditoria.servicio.js';
 
+
 /**
- * POST /api/busquedas/verificacion  { "lot_number, captcha_output, pass_token, gen_time" }
+ * POST /api/busquedas/desafio
+ * Crea un desafío del captcha deslizante: devuelve las imágenes del rompecabezas,
+ * nunca la posición correcta.
+ */
+export async function crearDesafio(req, res) {
+  const desafio = await captchaServicio.crearDesafio();
+  res.status(201).json(desafio);
+}
+
+/**
+ * POST /api/busquedas/verificacion  { "desafioId, posicion" }
  * Verifica el captcha y, si es válido, abre una sesión de búsqueda (cookie).
  */
 export async function verificarCaptcha(req, res) {

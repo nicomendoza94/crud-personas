@@ -88,24 +88,26 @@ export function buscarPersonas(termino) {
   });
 }
 
-/** Configuración pública del servidor (ID público del captcha). */
-export function obtenerConfiguracion() {
-  return solicitar('/api/configuracion');
+/** Pide al servidor un desafío nuevo del captcha deslizante (las imágenes, sin la respuesta). */
+export function pedirDesafio() {
+  return solicitar('/api/busquedas/desafio', { method: 'POST' });
 }
 
 /**
- * Envía al servidor el resultado del captcha deslizante (los cuatro valores que
- * entrega GeeTest). Si es válido, el servidor responde con una cookie de sesión
- * de búsqueda (HttpOnly: el JavaScript no puede leerla, pero el navegador la
- * envía automáticamente en las búsquedas siguientes).
+ * Envía la posición donde el usuario soltó la pieza. Si es correcta, el servidor
+ * responde con una cookie de sesión de búsqueda (HttpOnly: el JavaScript no puede
+ * leerla, pero el navegador la envía automáticamente en las búsquedas siguientes).
+ * @param {{desafioId: string, posicion: number}} respuesta
  */
-export function verificarCaptcha(resultado) {
+export function verificarCaptcha(respuesta) {
   return solicitar('/api/busquedas/verificacion', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(resultado),
+    body: JSON.stringify(respuesta),
   });
 }
+
+
 
 /** Página del historial de búsquedas (auditoría). */
 export function listarAuditoria(pagina) {

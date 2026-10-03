@@ -33,10 +33,7 @@ const esquema = z.object({
       }
     }, 'Zona horaria inválida'),
 
-  // --- Captcha deslizante (GeeTest CAPTCHA v4) ---
-  // ID público y Key privada de un evento del panel de GeeTest (32 caracteres cada uno)
-  GEETEST_CAPTCHA_ID: z.string().length(32),
-  GEETEST_CAPTCHA_KEY: z.string().length(32),
+
   // Política de la sesión de búsqueda habilitada por un captcha aprobado
   CAPTCHA_VIGENCIA_MINUTOS: z.coerce.number().int().min(1).max(120).default(10),
   CAPTCHA_MAXIMO_BUSQUEDAS: z.coerce.number().int().min(1).max(500).default(20),
@@ -90,8 +87,6 @@ export const config = Object.freeze({
   zonaHoraria: variables.ZONA_HORARIA,
 
   captcha: Object.freeze({
-    captchaId: variables.GEETEST_CAPTCHA_ID,
-    captchaKey: variables.GEETEST_CAPTCHA_KEY,
     vigenciaMinutos: variables.CAPTCHA_VIGENCIA_MINUTOS,
     maximoBusquedas: variables.CAPTCHA_MAXIMO_BUSQUEDAS,
   }),
