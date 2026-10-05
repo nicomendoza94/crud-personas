@@ -431,6 +431,7 @@ autenticación, control de acceso por roles y auditoría de las consultas al pro
 - **Logs estructurados** y centralizados, en lugar de la salida por consola.
 
 ## Uso de inteligencia artificial
+El detalle de la forma de trabajo con la IA y los prompts principales, agrupados por etapa, está en [docs/uso-de-ia.md](docs/uso-de-ia.md).
 
 Se utilizó Claude (Anthropic) como asistente durante el desarrollo.
 Cada entrada registra en qué se usó, qué errores cometió la herramienta y qué se corrigió.
